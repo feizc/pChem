@@ -1,0 +1,144 @@
+[param]
+
+##Number of Processor
+multip=1
+
+##Number of Threads
+thread=2
+activation_type=HCD-FTMS
+
+##Tolerance
+mstol=20
+msmstol=20
+
+##Tolerance Types
+mstolppm=1
+msmstolppm=1
+
+##Maximum Modifications Per Peptide
+maxmod=3
+
+##Enzyme
+enzyme=Trypsin KR _ C
+
+##Specificity, 0:Non-Specific;1:Semi-Specific;3:Fully-Specific
+digest=3
+
+##Number of Peptide Candidates
+temppepnum=100
+
+##Number of Final Peptides
+pepnum=10
+
+##Number of Selected Peaks
+selectpeak=200
+noproc=0
+
+##Maximum Protein Length
+maxprolen=60000000
+
+##Maximum Number of Spectra
+maxspec=100000
+
+##Maximum Cleavage Sites
+max_clv_sites=3
+
+##Var Modifications (Separated by ';')
+selectmod=
+
+##Fix Modifications (Separated by ';')
+fixmod=
+
+##Consider I and L as the same AA
+IeqL=1
+
+##The Length of the Possible Signal Peptides
+npep=1
+maxdelta=500
+center=0
+[engine]
+
+##Open Search or Not
+open=1
+
+##Iterative Tag Search or Not
+rest_tag_iteration=1
+
+##Iterative Salvo Search or Not
+salvo_iteration=1
+
+##Tag Length in Open Search
+open_tag_len=5
+rest_tag_len=4
+rest_mod_num=10
+salvo_mod_num=5
+max_tag=100
+max_res_tag=100
+digest_in_open=0
+max_edge=2
+max_gen_mod_pep=5000
+max_round=10
+[filter]
+
+##The FDR Threshold, Usually 0.01
+psm_fdr=0.01
+
+##0: PSM Level;1: Peptide Level
+psm_fdr_type=1
+mass_lower=600
+mass_upper=10000
+len_lower=6
+len_upper=100
+
+##Minimum Peptides per Protein
+pep_per_pro=1
+
+##The FDR Threshold of Protein, Usually 0.01
+pro_fdr=0.01
+[file]
+
+##Fasta File Path[IMPORTANT!]
+fastapath=D:\pChem\pfindworkpFindTask1\fasta\uniprot-reviewed-20200326_con.fasta
+
+##If 1 Then the Program will Generate a Decoy Database Automatically
+auto_rev=1
+
+##MSMSPath, Set as a null String
+msmspath=D:\pChem\IPM\raw\QE_Plus_YJ_HJX_IPM_PH8_50per_20190730_F1_R1_HCDFT.pf2
+
+##Output Path[IMPORTANT!]
+outputpath=D:\pChem\pChem\results\open\
+
+##Output ID
+outputname=open.F1.L1
+
+##The Path of modification.ini and aa.ini
+modpath=D:\pChem\pChem\results\open\1.mod
+aapath=D:\pChem\pChem\results\open\1.aa
+[datalist]
+
+##Number of MSMS Files[IMPORTANT!]
+msmsfolder=0
+msmsnum=1
+
+##MSMS Files
+msmspath1=D:\pChem\IPM\raw\QE_Plus_YJ_HJX_IPM_PH8_50per_20190730_F1_R1_HCDFT.pf2
+
+##MGF or MS2 or PF2
+msmstype=PF2
+[quant]
+
+##Quantification Method
+quant=1|None
+label_name=None
+label_id=0
+pquant_path=
+pquant_cfg_path=
+[system]
+log=LOG_INFO
+
+##Delete Temporary Files or Not
+del_tmp_files=1
+
+[Version Info]
+2020.1.2.2.2.50
