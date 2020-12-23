@@ -44,7 +44,7 @@ maxspec=100000
 max_clv_sites=3
 
 ##Var Modifications (Separated by ';')
-selectmod=Carbamidomethyl[C];Cation_Na[AnyC-term];Dioxidation[C];Trioxidation[C]
+selectmod=Carbamidomethyl[C];iTRAQ4plex115[C];Oxidation[M];PFIND_DELTA_252.12;PFIND_DELTA_258.14;
 
 ##Fix Modifications (Separated by ';')
 fixmod=
@@ -59,22 +59,22 @@ center=0
 [engine]
 
 ##Open Search or Not
-open=3
+open=0
 
 ##Iterative Tag Search or Not
-rest_tag_iteration=0
+rest_tag_iteration=1
 
 ##Iterative Salvo Search or Not
-salvo_iteration=1
+salvo_iteration=0
 
 ##Tag Length in Open Search
 open_tag_len=5
-rest_tag_len=5
-rest_mod_num=-1
-salvo_mod_num=5
+rest_tag_len=4
+rest_mod_num=10
+salvo_mod_num=-1
 max_tag=100
 max_res_tag=100
-digest_in_open=3
+digest_in_open=0
 max_edge=2
 max_gen_mod_pep=5000
 max_round=10
@@ -82,8 +82,6 @@ max_round=10
 
 ##The FDR Threshold, Usually 0.01
 psm_fdr=0.01
-dbgen_fdr=0.05
-dbgen_filtermod=0
 
 ##0: PSM Level;1: Peptide Level
 psm_fdr_type=1
@@ -100,33 +98,31 @@ pro_fdr=0.01
 [file]
 
 ##Fasta File Path[IMPORTANT!]
-fastapath=D:\pChem\dialok\fasta\uniprot-reviewed-20200326_con.fasta
+fastapath=F:\pChem\pfindworkpFindTask1\fasta\uniprot-reviewed-20200326_con.fasta
 
 ##If 1 Then the Program will Generate a Decoy Database Automatically
 auto_rev=1
 
 ##MSMSPath, Set as a null String
-msmspath=D:\pChem\dialok\raw\QE_Plus_YangJing_Hela_SO2_Sitemap_1st_20160623_HCDFT.pf2
+msmspath=F:\pChem\IPM\raw\QE_Plus_YJ_HJX_IPM_PH8_50per_20190730_F1_R1_HCDFT.pf2
 
 ##Output Path[IMPORTANT!]
-outputpath=D:\pChem\pChem\results\blind\
+outputpath=F:\pChem\pChem\results\close\
 
 ##Output ID
-outputname=blind.F1.L1
+outputname=close.F1.L1
 
 ##The Path of modification.ini and aa.ini
-modpath=D:\pChem\pChem\results\blind\1.mod
-aapath=D:\pChem\pChem\results\blind\1.aa
+modpath=F:\pChem\pChem\results\close\1.mod
+aapath=F:\pChem\pChem\results\close\1.aa
 [datalist]
 
 ##Number of MSMS Files[IMPORTANT!]
 msmsfolder=0
-msmsnum=3
+msmsnum=1
 
 ##MSMS Files
-msmspath1=D:\pChem\dialok\raw\QE_Plus_YangJing_Hela_SO2_Sitemap_1st_20160623_HCDFT.pf2
-msmspath2=D:\pChem\dialok\raw\QE_Plus_YangJing_Hela_SO2_Sitemap_2nd_20160705_HCDFT.pf2
-msmspath3=D:\pChem\dialok\raw\QE_Plus_YangJing_Hela_SO2_Sitemap_3rd_20160705_HCDFT.pf2
+msmspath1=F:\pChem\IPM\raw\QE_Plus_YJ_HJX_IPM_PH8_50per_20190730_F1_R1_HCDFT.pf2
 
 ##MGF or MS2 or PF2
 msmstype=PF2
@@ -142,7 +138,7 @@ pquant_cfg_path=
 log=LOG_INFO
 
 ##Delete Temporary Files or Not
-del_tmp_files=0
+del_tmp_files=1
 
 [Version Info]
-2020.11.18.10.49.58
+2020.1.2.2.2.50
