@@ -3,7 +3,7 @@
 an localize-aware unknown modification identification software 
 
 
-### Total process 
+### General process 
 
 1. open pattern to describe the mass spectrum data 
 
@@ -11,5 +11,9 @@ an localize-aware unknown modification identification software
 
 3. close pattern to identify the dataset with correct mofication 
 
+### quick start 
 
+
+
+### Professional test 
 
