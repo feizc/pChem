@@ -21,6 +21,7 @@ def parameter_file_read(path):
     with open(path, 'r', encoding='utf-8') as f:
         lines = f.readlines()
     parameter_dict = {}
+
     for i in range(len(lines)):
         if 'pfind_install' in lines[i]:
             parameter_dict['pfind_install_path'] = parameter_pick(lines[i])
@@ -44,7 +45,13 @@ def parameter_file_read(path):
         if 'common_modification_list' in lines[i]:
             parameter_dict['common_modification_list'] = parameter_pick(lines[i]) 
         if 'mass_diff_diff' in lines[i]:
-            parameter_dict['mass_diff_diff'] = float(parameter_pick(lines[i]))
+            parameter_dict['mass_diff_diff'] = float(parameter_pick(lines[i])) 
+        if 'common_modification_number' in lines[i]:
+            parameter_dict['common_modification_number'] = int(parameter_pick(lines[i]))
+        if 'close_mass_diff_number' in lines[i]:
+            parameter_dict['close_mass_diff_number'] = int(parameter_pick(lines[i])) 
+        if 'min_mass_modification' in lines[i]:
+            parameter_dict['min_mass_modification'] = float(parameter_pick(lines[i]))
     return parameter_dict
 
 
@@ -137,12 +144,15 @@ def close_cfg_write(cfg_path, current_path, parameter_dict, mass_diff_dict):
     with open(cfg_path, 'r', encoding='utf-8') as f:
         lines = f.readlines()
     
-    mod_line = combine_common_list(current_path, mass_diff_dict)
+    mod_line, flag = combine_common_list(current_path, parameter_dict, mass_diff_dict)
 
-    # 指定参数内容修改
+    # 指定参数内容修改 
+    new_lines = [] 
     for i in range(len(lines)):
         if 'selectmod' in lines[i]:
             lines[i] = parameter_modify(lines[i], mod_line)
+        if 'fixmod' in lines[i] and flag == True:
+            lines[i] = parameter_modify(lines[i],'Carbamidomethyl[C]')
         if 'modpath' in lines[i]:
             mod_path = os.path.join(current_path, 'modification-new.ini')
             lines[i] = parameter_modify(lines[i], mod_path)
@@ -155,12 +165,20 @@ def close_cfg_write(cfg_path, current_path, parameter_dict, mass_diff_dict):
             lines[i] = parameter_modify(lines[i], res_path)
         if 'outputname' in lines[i]:
             lines[i] = parameter_modify(lines[i], 'close')
+        if 'msmsnum' in lines[i]:
+            lines[i] = parameter_modify(lines[i], str(parameter_dict['msms_num']))
+            new_lines.append(lines[i])
+            for path in parameter_dict['msms_path']:
+                new_lines.append(path)
+            continue
         if 'msmspath' in lines[i]:
-            lines[i] = parameter_modify(lines[i], parameter_dict['msms_path'])
+            continue
+
+        new_lines.append(lines[i])
     
     # 写入参数文件
     with open(cfg_path, 'w', encoding='utf-8') as f:
-        for line in lines:
+        for line in new_lines:
             f.write(line)
 
     return res_path
@@ -168,20 +186,38 @@ def close_cfg_write(cfg_path, current_path, parameter_dict, mass_diff_dict):
 
 
 # 盲搜之后生成合并的修饰列表
-def combine_common_list(current_path, mass_diff_dict):
+def combine_common_list(current_path, parameter_dict, mass_diff_dict):
     mod_line = ""
-    common_path = os.path.join(current_path, 'common_modification_list.txt')
-    with open(common_path, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
-    lines = lines[1:]
-    for line in lines:
-        if len(line) < 4:
-            break
-        mod = line.split('\t')[0]
-        mod_line += mod + ';'
+    if parameter_dict['open_flag'] == 'True': 
+        common_path = os.path.join(current_path, 'common_modification_list.txt')
+        with open(common_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        lines = lines[1:]
+        for line in lines:
+            if len(line) < 4:
+                break
+            mod = line.split('\t')[0]
+            mod_line += mod + ';' 
+    else:
+        mod_line += parameter_dict['common_modification_list'] 
+        if mod_line[-1] != ';':
+            mod_line += ';'
     for key in mass_diff_dict.keys():
         mod_line += key + ';'
-    return mod_line
+    
+    flag = False 
+    if 'Carbamidomethyl[C]' in mod_line:
+        mod_list = mod_line.split(';')
+        mod_line = ''
+        for mod in mod_list:
+            if mod == '':
+                continue
+            if mod == 'Carbamidomethyl[C]':
+                flag = True 
+                continue
+            mod_line += mod + ';'
+
+    return mod_line, flag
 
 
 # 返回search.exe地址
@@ -199,7 +235,7 @@ def modification_ini_path(parameter_dict):
 
 
 # 读取谱图结果文件, 将常见的修饰列表写出来提供删选
-def spectra_result_read(spectra_res_path, target_path):
+def spectra_result_read(spectra_res_path, target_path, common_modification_number):
     # 保存常见的修饰
     model_res = []
     with open(spectra_res_path, 'r', encoding='utf-8') as f:
@@ -209,6 +245,7 @@ def spectra_result_read(spectra_res_path, target_path):
             i += 1
             model_res.append(lines[i])
             i += 1
+            '''
             while True:
                 freq = lines[i].split('\t')[1]
                 idx_left = freq.find('(')
@@ -216,8 +253,14 @@ def spectra_result_read(spectra_res_path, target_path):
                 freq = float(freq[idx_left+1:idx_right])
                 if freq < 1.5:
                     break
-                i += 1
                 model_res.append(lines[i])
+                i += 1
+            '''
+            num = 0 
+            while num < common_modification_number:
+                model_res.append(lines[i])
+                i += 1
+                num += 1
     # print(model_res)
     target_path = os.path.join(target_path, 'common_modification_list.txt')
     with open(target_path, 'w', encoding='utf-8') as f:
@@ -234,7 +277,7 @@ def modification_ini_dict(path):
     i = 1
     while i < len(lines):
         # 防止文件后面的空行
-        if len(lines) < 4:
+        if len(lines[i]) < 4:
             break
         modification_name = lines[i].split()[0]
         eq_idx = modification_name.find('=')
@@ -345,20 +388,31 @@ def mass_diff_read(path):
 
 
 # 在盲搜确定修饰质量后，将其加入modification-new.ini文件
-def expand_modification_ini(mass_diff_dict, position_dict, current_path, ini_path):
+def expand_modification_ini(mass_diff_dict, mod_static_dict, current_path, ini_path):
     with open(ini_path, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
+        lines = f.readlines() 
+    while True:
+        if len(lines[-1]) < 4:
+            lines = lines[:-1]
+        else:
+            break
     # 修改第一行总数
     lines[0], num = lines[0].split('=')
     total_num = int(num) + len(mass_diff_dict)
-    lines[0] = lines[0] + '=' + str(total_num) + '\n'
+    lines[0] = lines[0] + '=' + str(total_num) + '\n' 
+    lines[-1] = lines[-1].strip() + '\n'
     # 末尾添加新增的修饰
     num = int(num) + 1
     for key in mass_diff_dict:
         line1 = 'name' + str(num) + '=' + key + ' 0 \n'
         lines.append(line1)
-        line2 = key + '=ACDEFGHIKLMNPQRSTVWXY ' + position_dict[key] + ' ' + str(mass_diff_dict[key])\
-            + ' ' + str(mass_diff_dict[key]) + ' 0 pFindDELTA \n' 
+        # 目前只有2种情况，N端的话就是全部；其他则是选择最高频率的氨基酸种类
+        if mod_static_dict[key].most_common()[0][0] == 'N-SIDE': 
+            line2 = key + '=ACDEFGHIKLMNPQRSTVWXY PEP_N ' + str(mass_diff_dict[key])\
+                + ' ' + str(mass_diff_dict[key]) + ' 0 pFindDELTA \n' 
+        else:
+            line2 = key + '=' + mod_static_dict[key].most_common()[0][0] + ' NORMAL ' +  str(mass_diff_dict[key])\
+                + ' ' + str(mass_diff_dict[key]) + ' 0 pFindDELTA \n' 
         lines.append(line2)
         num += 1
     new_ini_path = os.path.join(current_path, 'modification-new.ini')

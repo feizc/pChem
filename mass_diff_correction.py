@@ -1,6 +1,8 @@
 # 对盲搜鉴定到的修饰，进行质量校正
 import os 
 import numpy as np 
+from collections import Counter 
+
 
 element_dict={
     "C": 12.0000000,
@@ -116,8 +118,9 @@ def mass_correct(current_path, blind_path, mass_diff_list):
     return mass_dict
 
 
-# 删除质量小于200Da的偏差 
-def small_delta_filter(mass_difference_list):
+
+# 删除质量小于200Da的偏差和负数的修饰 
+def small_delta_filter(mass_difference_list, min_mass_modification):
     name2mass = {}
     new_mass_diff_list = []
     for mass_diff in mass_difference_list:
@@ -125,7 +128,7 @@ def small_delta_filter(mass_difference_list):
         if mass[0] == '-':
             continue
         mass = float(mass)
-        if mass < 200.0:
+        if mass < min_mass_modification:
             continue
         name2mass[mass_diff] = mass
         new_mass_diff_list.append(mass_diff)
@@ -133,6 +136,8 @@ def small_delta_filter(mass_difference_list):
 
 
 # 筛选修饰质量差满足设定的插值的修饰 
+# mass_diff_diff = 6.0201 
+# 应该是20ppm，但是实际太小完全没有删选度
 def mass_diff_diff_filter(name2mass, mass_diff_list, mass_diff_diff):
     refined_list = []
     for i in range(len(mass_diff_list)):
@@ -147,9 +152,80 @@ def mass_diff_diff_filter(name2mass, mass_diff_list, mass_diff_diff):
     for mod_name in refined_list:
         flag_rep = False 
         for ref_mod in new_refined_list:
-            if abs(name2mass[mod_name] - name2mass[ref_mod]) < 0.1:
+            if abs(name2mass[mod_name] - name2mass[ref_mod]) < 0.05:
                 flag_rep = True
         if flag_rep == False:
             new_refined_list.append(mod_name)
     return new_refined_list 
+
+
+# 统计修饰发生的位点分布 
+def mass_static(blind_path, current_path, mass_diff_list): 
+    mod_position_dict = {} 
+    mod_number_dict = {} 
+    for mass in mass_diff_list:
+        mod_position_dict[mass] = [] 
+        mod_number_dict[mass] = 0 
+    
+    with open(blind_path, 'r', encoding='utf-8') as f:
+        lines = f.readlines() 
+    spectra_num = len(lines)
+    for i in range(1, spectra_num):
+        if len(lines[i]) < 4:
+            break
+        sequence = lines[i].split('\t')[5]
+        mod_list = lines[i].split('\t')[10].split(';')[:-1]
+        for mod in mod_list:
+            pos, mod_name = mod.split(',')
+            if mod_name in mass_diff_list:
+                pos = int(pos) 
+                mod_number_dict[mod_name] += 1
+                if pos == 0 or pos == 1:
+                    mod_position_dict[mod_name].append(sequence[0])
+                    mod_position_dict[mod_name].append('N-SIDE')
+                elif pos >= len(sequence):
+                    mod_position_dict[mod_name].append(sequence[-1])
+                    mod_position_dict[mod_name].append('C_SIDE')
+                else:
+                    mod_position_dict[mod_name].append(sequence[pos-1])
+    
+    mod_static_dict = {}
+    for mod_name in mass_diff_list:
+        counter = Counter(mod_position_dict[mod_name])
+        mod_static_dict[mod_name] = counter 
+    
+    return mod_static_dict, mod_number_dict  
+
+
+# 写pchem.summary结果文件
+def summary_write(current_path, mod_static_dict, mod_number_dict): 
+    lines = []
+    lines.append('rank \tmass modification \tTotal number \tposition: occurance times\n')
+    i = 1 
+    for mod in mod_static_dict:
+        line = str(i) + '\t' + mod + '\t' + str(mod_number_dict[mod]) + '\t' + str(mod_static_dict[mod])[8:-1] + '\n'
+        lines.append(line)
+        i += 1
+    with open(os.path.join(current_path, 'pChem.summary'), 'w', encoding='utf-8') as f:
+        for line in lines:
+            f.write(line)
+    # print(mod_static_dict)
+
+
+# 选择不重复的topk来做限定式搜索
+def mass_select(mass_diff_list, k, name2mass):
+    selected_list = []
+    i = 0 
+    for mod in mass_diff_list: 
+        flag = True
+        for reference in selected_list:
+            if abs(name2mass[mod]-name2mass[reference]) < 0.03:
+                flag = False
+        if flag == True:
+            selected_list.append(mod)
+            i += 1 
+        if i >= k:
+            break
+    return selected_list 
+        
 

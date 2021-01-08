@@ -6,12 +6,12 @@ from utils import parameter_file_read, modification_ini_path, modification_ini_d
     modification_ini_generation_from_param 
 
 
-def blind_search():
+def blind_search(current_path):
     
     # 路径参数 
-    current_path = os.getcwd()
-    pchem_cfg_path = os.path.join(os.getcwd(), 'pChem.cfg')
-    blind_cfg_path = os.path.join(os.path.join(os.getcwd(), 'template'), 'blind.cfg')
+
+    pchem_cfg_path = os.path.join(current_path, 'pChem.cfg')
+    blind_cfg_path = os.path.join(os.path.join(current_path, 'template'), 'blind.cfg')
 
     parameter_dict = parameter_file_read(pchem_cfg_path)
 
@@ -27,7 +27,8 @@ def blind_search():
     else: 
         # 使用参数文件中的列表来生成 
         common_modification_list = modification_ini_generation_from_param(current_path, modification_dict, parameter_dict)
-    print(common_modification_list)
+    #common_modification_list = common_modification_list[:2]
+    #print(common_modification_list)
     
     # 重新生成blind.cfg文件
     res_path = blind_cfg_write(blind_cfg_path, current_path, parameter_dict, common_modification_list)
@@ -44,5 +45,6 @@ def blind_search():
     mass_diff_list_generate(res_path, current_path)
     
 
-if __name__ == "__main__":
-    blind_search()
+if __name__ == "__main__": 
+    current_path = os.getcwd() 
+    blind_search(current_path)
