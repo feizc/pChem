@@ -3,13 +3,12 @@
 import os 
 from utils import parameter_file_read, modification_ini_path, modification_ini_dict, \
     modification_ini_generation, blind_cfg_write, search_exe_path, mass_diff_list_generate, \
-    modification_ini_generation_from_param 
-
+    modification_ini_generation_from_param, mass_diff_read
+from mass_diff_correction import mass_correct, small_delta_filter, mass_diff_diff_filter, mass_static, summary_write, mass_select, new_summary_write   
 
 def blind_search(current_path):
     
     # 路径参数 
-
     pchem_cfg_path = os.path.join(current_path, 'pChem.cfg')
     blind_cfg_path = os.path.join(os.path.join(current_path, 'template'), 'blind.cfg')
 
@@ -33,16 +32,40 @@ def blind_search(current_path):
     # 重新生成blind.cfg文件
     res_path = blind_cfg_write(blind_cfg_path, current_path, parameter_dict, common_modification_list)
     
-    
+    '''
     # 运行盲搜search.exe进行搜索
     bin_path, exe_path = search_exe_path(parameter_dict)
     cmd = exe_path + ' ' + blind_cfg_path 
     os.chdir(bin_path)
-    receive = os.system(cmd)
+    receive = os.system(cmd) 
     print(receive)
+    '''
 
+    
     # 读取鉴定结果，生成位置修饰的候选列表
     mass_diff_list_generate(res_path, current_path)
+    
+    mass_diff_list, mod2pep = mass_diff_read(current_path) 
+
+    
+    # 盲搜的结果文件
+    
+    blind_path = os.path.join(parameter_dict['output_path'], 'blind')
+    blind_path = os.path.join(blind_path, 'pFind-Filtered.spectra')
+    #print(mass_diff_list)
+    
+    # 对得到的未知质量数进行过滤和统计 
+
+    # mass_diff_list 修饰名称的列表  mod_static_dict 修饰名字-> Counter
+    # mod_number_dict 修饰名字 -> PSM 
+    # mass_diff_dict 修饰名字 -> 精准质量 
+    # mod2pep 修饰名字 -> peptide 
+    name2mass, mass_diff_list = small_delta_filter(mass_diff_list, parameter_dict['min_mass_modification']) 
+    mod_static_dict, mod_number_dict = mass_static(blind_path, current_path, mass_diff_list) 
+    mass_diff_dict = mass_correct(current_path, blind_path, mass_diff_list) 
+
+    # 将统计结果写入结果文件 
+    new_summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, parameter_dict) 
     
 
 if __name__ == "__main__": 

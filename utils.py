@@ -380,11 +380,16 @@ def mass_diff_read(path):
         lines = f.readlines()
     lines = lines[1:]
     mass_diff_list = []
-    for line in lines:
+    mod2pep = {} 
+    for line in lines: 
+        # print(line)
         if len(line) < 2:
-            break
-        mass_diff_list.append(line.split('\t')[0])
-    return mass_diff_list
+            break 
+        mod, pep = line.split('\t')[0], line.split('\t')[1].split()[0] 
+        mass_diff_list.append(mod)
+        mod2pep[mod] = pep 
+    return mass_diff_list, mod2pep 
+
 
 
 # 在盲搜确定修饰质量后，将其加入modification-new.ini文件

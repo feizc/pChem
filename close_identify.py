@@ -14,7 +14,7 @@ def close_search(current_path):
     close_cfg_path = os.path.join(os.path.join(current_path, 'template'), 'close.cfg')
 
     # 读取位置修饰质量数的列表
-    mass_diff_list = mass_diff_read(current_path)
+    mass_diff_list, _ = mass_diff_read(current_path)
 
     
     # 盲搜的结果文件
@@ -28,7 +28,7 @@ def close_search(current_path):
     mod_static_dict, mod_number_dict = mass_static(blind_path, current_path, mass_diff_list) 
 
     # 将统计结果写入结果文件 
-    summary_write(current_path, mod_static_dict, mod_number_dict) 
+    # summary_write(current_path, mod_static_dict, mod_number_dict) 
 
     
     if 'mass_diff_diff' in parameter_dict.keys() and parameter_dict['mass_diff_diff'] != -1.0:

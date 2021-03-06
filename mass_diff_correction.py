@@ -198,18 +198,167 @@ def mass_static(blind_path, current_path, mass_diff_list):
 
 
 # 写pchem.summary结果文件
-def summary_write(current_path, mod_static_dict, mod_number_dict): 
+# mass_diff_list 修饰名称的列表  mod_static_dict 修饰名字-> Counter
+# mod_number_dict 修饰名字 -> PSM 
+# mass_diff_dict 修饰名字 -> 精准质量 
+# mod2pep 修饰名字 -> peptide 
+# simple_dict 修饰名字 -> 简化版 
+def summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, parameter_dict): 
+    mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, rank_dict, label_dict, mass_diff_rank, _  = \
+        mass_refine(mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, parameter_dict)
     lines = []
-    lines.append('rank \tmass modification \tTotal number \tposition: occurance times\n')
-    i = 1 
-    for mod in mod_static_dict:
-        line = str(i) + '\t' + mod + '\t' + str(mod_number_dict[mod]) + '\t' + str(mod_static_dict[mod])[8:-1] + '\n'
+    lines.append('Rank \tLabel \tMass modification \tPeptide \tPSM  \tSite (Location Score/Probability)-Top1 \tSite (Location Score/Probability)-Others \tAccurate mass \n') 
+
+    # 按照出现频率进行排序 
+    for mod in mass_diff_rank:
+        local_list = mod_static_dict[mod].most_common() 
+        Top1 = local_list[0][0] + '(' + str(round(local_list[0][1]/mod_number_dict[mod],3)) + '); ' 
+        Others = ''
+        for j in range(1, len(local_list)):
+            Others += local_list[j][0] + '(' + str(round(local_list[j][1]/mod_number_dict[mod],3)) + '); ' 
+        line = str(rank_dict[mod]) + '\t' + label_dict[mod] + '\t' + 'PFIND_DELTA_' + mod + '\t' + str(mod2pep[mod]) + '\t' + str(mod_number_dict[mod]) + '\t' \
+            + Top1 + '\t' + Others + '\t' + str(mass_diff_dict[mod]) + '\n'
         lines.append(line)
-        i += 1
     with open(os.path.join(current_path, 'pChem.summary'), 'w', encoding='utf-8') as f:
         for line in lines:
             f.write(line)
     # print(mod_static_dict)
+
+
+# 只输出轻标修饰到结果文件 
+def new_summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, parameter_dict): 
+    mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank  = \
+        mass_refine(mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, parameter_dict) 
+    lines = [] 
+    lines.append('Rank \tMass Shift \tIsotopic Label \tPeptide Total \tPSM Total \tPeptide L|H \tPSM L|H \
+                \tTop1 Site \tTop1 Probability \tAccurate Mass \tSite (Location /Probability)-Others \n')
+    
+    idx = 1
+    for mass_pair in mass_diff_pair_rank: 
+        light_mod = mass_pair[0]
+        heavy_mod = mass_pair[1] 
+        local_list = mod_static_dict[light_mod].most_common() 
+        Top1_site = local_list[0][0]
+        Top1_pro =  str(round(local_list[0][1]/mod_number_dict[light_mod],3)) 
+        Others = '' 
+        for j in range(1, len(local_list)):
+            Others += local_list[j][0] + '(' + str(round(local_list[j][1]/mod_number_dict[light_mod],3)) + '); ' 
+        line = str(idx) + '\t' + 'PFIND_DELTA_' + light_mod + '\t' + 'Yes' + '\t' + str(mod2pep[light_mod] + mod2pep[heavy_mod]) + '\t' + \
+            str(mod_number_dict[light_mod] + mod_number_dict[heavy_mod]) + '\t' + str(mod2pep[light_mod]) + '|' + str(mod2pep[heavy_mod]) + '\t' + \
+            str(mod_number_dict[light_mod]) + '|' + str(mod_number_dict[heavy_mod]) + '\t' + Top1_site + '\t' + Top1_pro + '\t' + str(mass_diff_dict[light_mod]) + \
+            '\t' + Others + '\n' 
+        lines.append(line) 
+        idx += 1 
+    with open(os.path.join(current_path, 'pChem.summary'), 'w', encoding='utf-8') as f:
+        for line in lines:
+            f.write(line)
+
+
+
+
+# 保留整数，其余信息进行合并 
+def mass_refine(mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, parameter_dict): 
+    new_mod_static_dict, new_mod_number_dict, new_mod2pep, new_mass_diff_dict = {}, {}, {}, {}
+    new_mass_list = [] 
+    int_mass_list = []
+    for mass in mod_static_dict: 
+        simple_mass = str(int(float(mass.split('_')[2]))) 
+        if simple_mass in new_mass_list: 
+            new_mod_static_dict[simple_mass] = new_mod_static_dict[simple_mass] + mod_static_dict[mass] 
+            new_mod_number_dict[simple_mass] = new_mod_number_dict[simple_mass] + mod_number_dict[mass]
+            new_mod2pep[simple_mass] = new_mod2pep[simple_mass] + int(mod2pep[mass]) 
+        else:
+            new_mass_list.append(simple_mass)
+            int_mass_list.append(int(simple_mass))
+            new_mod_static_dict[simple_mass] = mod_static_dict[mass] 
+            new_mod_number_dict[simple_mass] = mod_number_dict[mass]
+            new_mod2pep[simple_mass] = int(mod2pep[mass]) 
+            new_mass_diff_dict[simple_mass] = mass_diff_dict[mass] 
+    rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank = label_determine(new_mod_number_dict, int_mass_list, int(parameter_dict['mass_diff_diff']))
+    return new_mod_static_dict, new_mod_number_dict, new_mod2pep, new_mass_diff_dict, rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank  
+
+
+
+# 找到轻重标记 
+def label_determine(mod_number_dict, int_mass_list, mass_diff): 
+    rank_dict = {} 
+    label_dict = {} 
+    # 按照出现频率进行排序 
+    rank_tuple = sorted(mod_number_dict.items(), key=lambda x: -x[1]) 
+    
+    # 将数字化修饰按照频率从高到低  
+    freq_list = [int(mod[0]) for mod in rank_tuple]
+    
+    mass_diff_rank = [] 
+    mass_diff_pair_rank = [] 
+    id = 1 
+    for i in range(len(freq_list)): 
+        # 小于3的数目不显示 
+        mod = rank_tuple[i][0]
+        if mod_number_dict[mod] < 4:
+            break 
+        if mod in mass_diff_rank:
+            continue
+        rank_dict[mod] = id 
+        mass_diff_rank.append(mod) 
+        mod_num = int(mod) 
+        
+        find_pair = False 
+        for j in range(i+1, len(freq_list)): 
+            if rank_tuple[j][0] in mass_diff_rank:
+                continue 
+            if mod_num - freq_list[j] == mass_diff: 
+                label_dict[mod] = 'H' 
+                light_mod = rank_tuple[j][0]
+                rank_dict[light_mod] = id  
+                label_dict[light_mod] = 'L' 
+                mass_diff_rank.append(light_mod) 
+                mass_diff_pair = [light_mod, mod]
+                mass_diff_pair_rank.append(mass_diff_pair)
+                find_pair = True 
+                break 
+            if freq_list[j] - mod_num == mass_diff:
+                label_dict[mod] = 'L'
+                heavy_mod = rank_tuple[j][0] 
+                rank_dict[heavy_mod] = id  
+                label_dict[heavy_mod] = 'H' 
+                mass_diff_rank.append(heavy_mod) 
+                mass_diff_pair = [mod, heavy_mod]
+                mass_diff_pair_rank.append(mass_diff_pair)
+                find_pair = True 
+                break 
+
+        if find_pair == False:
+            label_dict[mod] = ' ' 
+            # mass_diff_pair_rank.append([mod])
+        id += 1
+
+        '''
+        # 使用字典直接搜的话，会出现高频优先匹配到小质量低频，出现错误匹配。
+        if (mod_num - mass_diff) in int_mass_list and str(mod_num - mass_diff) not in mass_diff_rank: 
+            label_dict[mod] = 'H'
+            light_mod = str(mod_num - mass_diff) 
+            rank_dict[light_mod] = i 
+            label_dict[light_mod] = 'L'
+            mass_diff_rank.append(light_mod) 
+            i += 1 
+            continue 
+        if (mod_num + mass_diff) in int_mass_list and str(mod_num + mass_diff) not in mass_diff_rank:
+            label_dict[mod] = 'L' 
+            h_mod = str(mod_num + mass_diff) 
+            label_dict[h_mod] = 'H' 
+            rank_dict[h_mod] = i 
+            mass_diff_rank.append(h_mod) 
+            i += 1 
+            continue 
+        label_dict[mod] = ' ' 
+        i += 1 
+        '''
+    # print(mass_diff_rank)
+    # print(rank_dict) 
+    # print(mass_diff_pair_rank)
+    return rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank  
+
 
 
 # 选择不重复的topk来做限定式搜索
