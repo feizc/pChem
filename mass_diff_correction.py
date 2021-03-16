@@ -2,6 +2,9 @@
 import os 
 import numpy as np 
 from collections import Counter 
+import matplotlib.pyplot as plt 
+import pandas as pd 
+import seaborn as sns 
 
 
 element_dict={
@@ -185,7 +188,7 @@ def mass_static(blind_path, current_path, mass_diff_list):
                     mod_position_dict[mod_name].append('N-SIDE')
                 elif pos >= len(sequence):
                     mod_position_dict[mod_name].append(sequence[-1])
-                    mod_position_dict[mod_name].append('C_SIDE')
+                    mod_position_dict[mod_name].append('C-SIDE')
                 else:
                     mod_position_dict[mod_name].append(sequence[pos-1])
     
@@ -251,9 +254,38 @@ def new_summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, m
         idx += 1 
     with open(os.path.join(current_path, 'pChem.summary'), 'w', encoding='utf-8') as f:
         for line in lines:
-            f.write(line)
+            f.write(line) 
+    # 同时保存热力图 
+    heat_map_plot(current_path, mass_diff_pair_rank, mod_static_dict, mod_number_dict)
 
 
+# 绘制结果热力图
+def heat_map_plot(current_path, mass_diff_pair_rank, mod_static_dict, mod_number_dict): 
+    y_stick = ["N-SIDE", "C-SIDE", "A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "V", "W", "X", "Y"] 
+    y_dict = {}
+    for i in range(len(y_stick)):
+        y_dict[y_stick[i]] = i 
+    
+    x_stick = [mod[0] for mod in mass_diff_pair_rank] 
+    mod_map = {}
+    
+    for i in range(len(x_stick)):
+        freq_list = [0.0] * len(y_stick) 
+        local_list = mod_static_dict[x_stick[i]].most_common()
+        for j in range(len(local_list)): 
+            cur_position = local_list[j][0]
+            cur_freq = round(local_list[j][1]/mod_number_dict[x_stick[i]],3)
+            freq_list[y_dict[cur_position]] = cur_freq 
+        mod_map[x_stick[i]] = freq_list 
+    
+    pd_mod_map = pd.DataFrame(mod_map, index=y_stick, columns=x_stick) 
+    print(pd_mod_map)
+    ax = sns.heatmap(pd_mod_map, vmin=0.0, vmax=1.0, cmap='YlGnBu', annot=True, annot_kws={"size":4})
+    plt.ylabel('amino acid selectivity')
+    plt.xlabel('probes')
+    png_path = os.path.join(current_path, 'heat_map.png') 
+    plt.savefig(png_path, dpi=200)
+    
 
 
 # 保留整数，其余信息进行合并 
