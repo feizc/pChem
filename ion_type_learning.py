@@ -2,7 +2,7 @@
 
 from utils import parameter_file_read 
 import os 
-
+from mass_diff_correction import amino_acid_dict, common_dict_create 
 
 # 存放谱图的类
 class MassSpectrum:
@@ -43,10 +43,30 @@ def mgf_read(mgf_path):
 
 
 # 读取盲搜的结果 
+def blind_res_read(blind_res_path):
+    # print(blind_res_path) 
+    with open(blind_res_path, 'r') as f:
+        lines = f.readlines() 
+    return lines[1:]
+
+
+# 筛选出含有指定修饰的PSM
+def PSM_filter(blind_res, modification): 
+    filtered_res = []
+    for line in blind_res: 
+        if modification in line:
+            filtered_res.append(line) 
+    return filtered_res 
+
+
+# 统计中性丢失的数目 
+def ion_type_compute(filtered_res, modification):
+    print(filtered_res[0])
+
 
 
 # 离子类型学习 
-def ion_type_determine(current_path): 
+def ion_type_determine(current_path, modification_list): 
     pchem_cfg_path = os.path.join(current_path, 'pChem.cfg')
     parameter_dict = parameter_file_read(pchem_cfg_path) 
     # print(parameter_dict)
@@ -62,7 +82,19 @@ def ion_type_determine(current_path):
     # 读取盲搜得到的结果 
     blind_path = os.path.join(parameter_dict['output_path'], 'blind')
     blind_res_path = os.path.join(blind_path, 'pFind-Filtered.spectra')
-    
+    blind_res = blind_res_read(blind_res_path) 
+
+    # 读取常见修饰的列表 
+    common_modification_dict = common_dict_create(current_path)
+    # print(common_modification_dict)
+
+    # 筛选有效的PSM 
+    for modification in modification_list:
+        filtered_res = PSM_filter(blind_res, modification) 
+        ion_type_compute(filtered_res, modification)
+        # print(filtered_res)
+
+
 
 
 
@@ -70,6 +102,6 @@ def ion_type_determine(current_path):
 if __name__ == "__main__": 
     current_path = os.getcwd() 
     modification_list = ['PFIND_DELTA_252', 'PFIND_DELTA_258']
-    
-    ion_type_determine(current_path)
+    modification_dict = {'PFIND_DELTA_252': 252.121858, 'PFIND_DELTA_258':258.141955}
+    ion_type_determine(current_path, modification_list)
     
