@@ -2,7 +2,12 @@
 
 from utils import parameter_file_read 
 import os 
-from mass_diff_correction import amino_acid_dict, common_dict_create 
+from collections import Counter 
+from mass_diff_correction import element_dict, amino_acid_dict, common_dict_create 
+
+
+h2o_mass = element_dict["H"]*2 + element_dict["O"]*1
+proton_mass = element_dict['Pm']
 
 # 存放谱图的类
 class MassSpectrum:
@@ -17,9 +22,9 @@ def mgf_read(mgf_path):
     mass_spectra_dict = {}
     with open(mgf_path, 'r') as f:
         lines = f.readlines()
-    # print(len(lines))
-    i = 0 
-    while i < len(lines):
+    print('read mgf data...')
+    i = 0  
+    while i < len(lines): 
         if 'BEGIN' in lines[i]: 
             i += 1
             spectrum_name = lines[i].split('=')[1].strip()
@@ -37,7 +42,7 @@ def mgf_read(mgf_path):
         spectrum = MassSpectrum(spectrum_charge, spectrum_pepmass, spectrum_peak_list)
         mass_spectra_dict[spectrum_name] = spectrum 
         i += 1 
-        break 
+        # break 
     # print('The number of spectra: ', len(mass_spectra_dict.keys()))
     return mass_spectra_dict
 
@@ -59,14 +64,109 @@ def PSM_filter(blind_res, modification):
     return filtered_res 
 
 
+# 给定修饰的位置和质量，修改质量数组
+def mass_vector_modify(pos, mass, mass_vector):
+    if pos == 0:
+        mass_vector[0] += mass 
+    elif pos == len(mass_vector)+1:
+        mass_vector[len(mass_vector)] += mass
+    else:
+        mass_vector[pos-1] += mass 
+    return mass_vector 
+
+
+# 生成质量数组，每个位置对应质量 
+def mass_vector_generation(peptide_sequence, mod_list, modification, accurate_mass, common_modification_dict):
+    mass_vector = []
+    
+    # 生成原始的质量数组
+    for amino_acid in peptide_sequence:
+        mass_vector.append(amino_acid_dict[amino_acid])
+    # print(mass_vector)
+
+    pos_mod_list = mod_list.split(';')[:-1] 
+    for pos_mod in pos_mod_list: 
+        pos, mod_name = pos_mod.split(',')
+        if modification in mod_name:
+            mod_pos = int(pos)
+            mass_vector = mass_vector_modify(mod_pos, accurate_mass, mass_vector)
+        else:
+            mass_vector = mass_vector_modify(int(pos), common_modification_dict[mod_name], mass_vector)
+    return mass_vector, mod_pos 
+
+
+# 位置校准 
+def position_correct(mod_pos, sequence_len):
+    if mod_pos == 0:
+        return 0
+    elif mod_pos == sequence_len + 1:
+        return sequence_len - 1
+    else:
+        return mod_pos - 1
+
+# 生成b,y离子谱峰的数组 
+def b_y_vector_generation(mass_vector, mod_pos):
+    mod_peak_list = []
+    sequence_len = len(mass_vector) 
+    mass_sum_vector = [mass_vector[0]] 
+    
+    for i in range(1, sequence_len):
+        mass_sum_vector.append(mass_vector[i] + mass_sum_vector[i-1])
+    # print(mass_vector)
+    # print(mass_sum_vector)
+
+    mod_pos = position_correct(mod_pos, sequence_len) 
+
+    # 生成b离子谱峰
+    mod_peak_list = [mass + proton_mass for mass in mass_sum_vector[mod_pos:]]
+    # 生成y离子谱峰 
+    mod_peak_list += [mass_sum_vector[sequence_len-1] - mass + h2o_mass + proton_mass for mass in mass_sum_vector[:mod_pos]]
+
+    return mod_peak_list 
+
+
+# 统计质量偏差
+def ion_diff_sum(mod_peak_list, peak_list):
+    ion_diff_counter = Counter()
+    for mod_peak in mod_peak_list:
+        ion_diff = [mod_peak - float(peak[0]) for peak in peak_list]
+        ion_diff_counter.update(ion_diff) 
+    return ion_diff_counter 
+
+
+
 # 统计中性丢失的数目 
-def ion_type_compute(filtered_res, modification):
-    print(filtered_res[0])
+def ion_type_compute(filtered_res, modification, accurate_mass, common_modification_dict, mass_spectra_dict): 
+    total_ion_diff_counter = Counter() 
+    segment = int(len(filtered_res) / 10)
+    i = 0 
+    for line in filtered_res:
+        if i % segment == 0:
+            print('finished ', i / segment * 10,  'percetage')
+        line_split = line.split('\t')
+        spectrum_name, peptide_sequence, mod_list = line_split[0], line_split[5], line_split[10]
+        # print(spectrum_name, peptide_sequence, mod_list)
+        mass_vector, mod_pos = mass_vector_generation(peptide_sequence, mod_list, modification, accurate_mass, common_modification_dict)
+        # print(mass_vector, mod_pos)
+
+        # 生成b/y离子有关的谱峰 
+        mod_peak_list = b_y_vector_generation(mass_vector, mod_pos)
+        
+        # print(mod_peak_list) 
+        if spectrum_name in mass_spectra_dict.keys():
+            peak_list = mass_spectra_dict[spectrum_name].peak_list
+        else:
+            continue
+        ion_diff_counter = ion_diff_sum(mod_peak_list, peak_list)
+        total_ion_diff_counter.update(ion_diff_counter) 
+        i += 1
+        # break  
+    print(total_ion_diff_counter.most_common()[:20])
 
 
 
 # 离子类型学习 
-def ion_type_determine(current_path, modification_list): 
+def ion_type_determine(current_path, modification_list, modification_dict): 
     pchem_cfg_path = os.path.join(current_path, 'pChem.cfg')
     parameter_dict = parameter_file_read(pchem_cfg_path) 
     # print(parameter_dict)
@@ -91,7 +191,8 @@ def ion_type_determine(current_path, modification_list):
     # 筛选有效的PSM 
     for modification in modification_list:
         filtered_res = PSM_filter(blind_res, modification) 
-        ion_type_compute(filtered_res, modification)
+        ion_type_compute(filtered_res, modification, modification_dict[modification], common_modification_dict, mass_spectra_dict) 
+        break
         # print(filtered_res)
 
 
@@ -103,5 +204,5 @@ if __name__ == "__main__":
     current_path = os.getcwd() 
     modification_list = ['PFIND_DELTA_252', 'PFIND_DELTA_258']
     modification_dict = {'PFIND_DELTA_252': 252.121858, 'PFIND_DELTA_258':258.141955}
-    ion_type_determine(current_path, modification_list)
+    ion_type_determine(current_path, modification_list, modification_dict) 
     
