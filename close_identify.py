@@ -49,8 +49,8 @@ def close_search(current_path):
 
 
     # 修改的modification-new.ini文件，加入质量数修饰
-    ini_path = modification_ini_path(parameter_dict)
-    new_ini_path = expand_modification_ini(mass_diff_dict, mod_static_dict, current_path, ini_path)
+    #ini_path = modification_ini_path(parameter_dict)
+    #new_ini_path = expand_modification_ini(mass_diff_dict, mod_static_dict, current_path, ini_path)
     
 
     

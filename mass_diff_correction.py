@@ -5,6 +5,7 @@ from collections import Counter
 import matplotlib.pyplot as plt 
 import pandas as pd 
 import seaborn as sns 
+import math 
 
 
 element_dict={
@@ -18,6 +19,7 @@ element_dict={
 
 amino_acid_dict={
     "A" : element_dict["C"]*3 + element_dict["H"]*5 + element_dict["N"]*1 + element_dict["O"]*1 + element_dict["S"]*0,
+    "B" : element_dict["C"]*0,
     "C" : element_dict["C"]*3 + element_dict["H"]*5 + element_dict["N"]*1 + element_dict["O"]*1 + element_dict["S"]*1,
     "D" : element_dict["C"]*4 + element_dict["H"]*5 + element_dict["N"]*1 + element_dict["O"]*3 + element_dict["S"]*0,
     "E" : element_dict["C"]*5 + element_dict["H"]*7 + element_dict["N"]*1 + element_dict["O"]*3 + element_dict["S"]*0,
@@ -25,19 +27,23 @@ amino_acid_dict={
     "G" : element_dict["C"]*2 + element_dict["H"]*3 + element_dict["N"]*1 + element_dict["O"]*1 + element_dict["S"]*0,
     "H" : element_dict["C"]*6 + element_dict["H"]*7 + element_dict["N"]*3 + element_dict["O"]*1 + element_dict["S"]*0,
     "I" : element_dict["C"]*6 + element_dict["H"]*11 + element_dict["N"]*1 + element_dict["O"]*1 + element_dict["S"]*0,
+    "J" : element_dict["C"]*0,
     "K" : element_dict["C"]*6 + element_dict["H"]*12 + element_dict["N"]*2 + element_dict["O"]*1 + element_dict["S"]*0,
     "L" : element_dict["C"]*6 + element_dict["H"]*11 + element_dict["N"]*1 + element_dict["O"]*1 + element_dict["S"]*0,
     "M" : element_dict["C"]*5 + element_dict["H"]*9 + element_dict["N"]*1 + element_dict["O"]*1 + element_dict["S"]*1,
     "N" : element_dict["C"]*4 + element_dict["H"]*6 + element_dict["N"]*2 + element_dict["O"]*2 + element_dict["S"]*0,
+    "O" : element_dict["C"]*0,
     "P" : element_dict["C"]*5 + element_dict["H"]*7 + element_dict["N"]*1 + element_dict["O"]*1 + element_dict["S"]*0,
     "Q" : element_dict["C"]*5 + element_dict["H"]*8 + element_dict["N"]*2 + element_dict["O"]*2 + element_dict["S"]*0,
     "R" : element_dict["C"]*6 + element_dict["H"]*12 + element_dict["N"]*4 + element_dict["O"]*1 + element_dict["S"]*0,
     "S" : element_dict["C"]*3 + element_dict["H"]*5 + element_dict["N"]*1 + element_dict["O"]*2 + element_dict["S"]*0,
     "T" : element_dict["C"]*4 + element_dict["H"]*7 + element_dict["N"]*1 + element_dict["O"]*2 + element_dict["S"]*0,
+    "U" : element_dict["C"]*0,
     "V" : element_dict["C"]*5 + element_dict["H"]*9 + element_dict["N"]*1 + element_dict["O"]*1 + element_dict["S"]*0,
     "W" : element_dict["C"]*11 + element_dict["H"]*10 + element_dict["N"]*2 + element_dict["O"]*1 + element_dict["S"]*0,
     "X" : element_dict["C"]*6 + element_dict["H"]*11 + element_dict["N"]*1 + element_dict["O"]*1 + element_dict["S"]*0,
     "Y" : element_dict["C"]*9 + element_dict["H"]*9 + element_dict["N"]*1 + element_dict["O"]*2 + element_dict["S"]*0,
+    "Z" : element_dict["C"]*0, 
 }
 
 h2o_mass = element_dict["H"]*2 + element_dict["O"]*1
@@ -72,7 +78,8 @@ def system_shift_compute(lines):
             continue
         else:
             mass_shift.append(float(line[7]))
-    system_shift = np.mean(mass_shift)
+    system_shift = np.mean(mass_shift) 
+    # system_shift = np.median(mass_shift) 
     return system_shift
 
 
@@ -87,8 +94,9 @@ def accurate_mass_compute(lines, mass, common_dict):
         parent_mass = float(line[2])
         sequence = line[5]
         amino_mass = 0.0
-        for a in sequence:
-            amino_mass += amino_acid_dict[a]
+        for a in sequence: 
+            if a in amino_acid_dict.keys():
+                amino_mass += amino_acid_dict[a]
         mod_mass = parent_mass - amino_mass - proton_mass - h2o_mass
         if len(mod_list) > 1:
             for mod in mod_list:
@@ -97,7 +105,53 @@ def accurate_mass_compute(lines, mass, common_dict):
                 mod = mod.split(',')[1]
                 mod_mass -= common_dict[mod]
         mass_list.append(mod_mass)
-    return np.mean(mass_list)
+    
+    if len(mass_list) == 0: 
+        return 0.0 
+    else:
+        return np.median(mass_list)
+        # return np.mean(mass_list) 
+
+
+# 计算分数加权后修饰的精确质量 
+def weight_accurate_mass_compute(lines, mass, common_dict):
+    mass_sum = 0.0 
+    score_sum = 0.0 
+    for line in lines:
+        if mass not in line:
+            continue
+        line = line.split('\t')
+        mod_list = line[10].split(';')[:-1]
+        score = math.log10(float(line[9]))
+        parent_mass = float(line[2])
+        sequence = line[5]
+        amino_mass = 0.0
+        for a in sequence: 
+            if a in amino_acid_dict.keys():
+                amino_mass += amino_acid_dict[a]
+        mod_mass = parent_mass - amino_mass - proton_mass - h2o_mass
+        if len(mod_list) > 1:
+            for mod in mod_list:
+                if mass in mod:
+                    continue
+                mod = mod.split(',')[1]
+                mod_mass -= common_dict[mod]
+        mass_sum += mod_mass * score
+        score_sum += score 
+    # return np.mean(mass_list) 
+    if score_sum == 0.0: 
+        return 0.0
+    else: 
+        return mass_sum / score_sum 
+
+
+# 只选择FDR千分之一的谱图
+def q_value_filter(lines): 
+    for i in range(len(lines)): 
+        q_value = float(lines[i].split('\t')[4]) 
+        if q_value > 0.001: 
+            return lines[:i]
+    return lines 
 
 
 
@@ -108,16 +162,20 @@ def mass_correct(current_path, blind_path, mass_diff_list):
     # 读取盲搜鉴定结果文件
     with open(blind_path, 'r', encoding='utf-8') as f:
         lines = f.readlines()
-    lines = lines[1:]
+    lines = lines[1:] 
+    
+    # 只选择q-value < 0.001的谱图 
+    # lines = q_value_filter(lines) 
 
     # 计算系统误差
     system_shift = system_shift_compute(lines)
     
     # 计算未知修饰的精确质量
     mass_dict = {}
-    for mass_diff in mass_diff_list:
-        accurate_mass_diff = accurate_mass_compute(lines, mass_diff, common_dict)
-        mass_dict[mass_diff] = float('%.6f'%(accurate_mass_diff - system_shift))
+    for mass_diff in mass_diff_list: 
+        #accurate_mass_diff = accurate_mass_compute(lines, mass_diff, common_dict) 
+        accurate_mass_diff = weight_accurate_mass_compute(lines, mass_diff, common_dict)
+        mass_dict[mass_diff] = float('%.6f'%(accurate_mass_diff - system_shift)) 
     return mass_dict
 
 
@@ -136,6 +194,7 @@ def small_delta_filter(mass_difference_list, min_mass_modification):
         name2mass[mass_diff] = mass
         new_mass_diff_list.append(mass_diff)
     return name2mass, new_mass_diff_list  
+
 
 
 # 筛选修饰质量差满足设定的插值的修饰 
@@ -248,7 +307,7 @@ def new_summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, m
             Others += local_list[j][0] + '(' + str(round(local_list[j][1]/mod_number_dict[light_mod],3)) + '); ' 
         line = str(idx) + '\t' + 'PFIND_DELTA_' + light_mod + '\t' + 'Yes' + '\t' + str(mod2pep[light_mod] + mod2pep[heavy_mod]) + '\t' + \
             str(mod_number_dict[light_mod] + mod_number_dict[heavy_mod]) + '\t' + str(mod2pep[light_mod]) + '|' + str(mod2pep[heavy_mod]) + '\t' + \
-            str(mod_number_dict[light_mod]) + '|' + str(mod_number_dict[heavy_mod]) + '\t' + Top1_site + '\t' + Top1_pro + '\t' + str(mass_diff_dict[light_mod]) + \
+            str(mod_number_dict[light_mod]) + '|' + str(mod_number_dict[heavy_mod]) + '\t' + Top1_site + '\t' + Top1_pro + '\t' + str(mass_diff_dict[light_mod]) + '|' + str(mass_diff_dict[heavy_mod]) + \
             '\t' + Others + '\n' 
         lines.append(line) 
         idx += 1 
@@ -257,6 +316,7 @@ def new_summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, m
             f.write(line) 
     # 同时保存热力图 
     heat_map_plot(current_path, mass_diff_pair_rank, mod_static_dict, mod_number_dict)
+
 
 
 # 绘制结果热力图
@@ -279,7 +339,7 @@ def heat_map_plot(current_path, mass_diff_pair_rank, mod_static_dict, mod_number
         mod_map[x_stick[i]] = freq_list 
     
     pd_mod_map = pd.DataFrame(mod_map, index=y_stick, columns=x_stick) 
-    print(pd_mod_map)
+    # print(pd_mod_map)
     ax = sns.heatmap(pd_mod_map, vmin=0.0, vmax=1.0, cmap='YlGnBu', annot=True, annot_kws={"size":4})
     plt.ylabel('amino acid selectivity')
     plt.xlabel('probes')
@@ -294,6 +354,8 @@ def mass_refine(mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, param
     new_mass_list = [] 
     int_mass_list = []
     for mass in mod_static_dict: 
+        if mass_diff_dict[mass] < 200.0: 
+            continue 
         simple_mass = str(int(float(mass.split('_')[2]))) 
         if simple_mass in new_mass_list: 
             new_mod_static_dict[simple_mass] = new_mod_static_dict[simple_mass] + mod_static_dict[mass] 
