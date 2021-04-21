@@ -70,7 +70,7 @@ def common_dict_create(current_path):
 
 
 # 计算系统误差
-def system_shift_compute(lines):
+def system_shift_compute(lines, system_correct='mean'):
     mass_shift = []
     for line in lines:
         line = line.split('\t')
@@ -78,13 +78,15 @@ def system_shift_compute(lines):
             continue
         else:
             mass_shift.append(float(line[7]))
-    system_shift = np.mean(mass_shift) 
-    # system_shift = np.median(mass_shift) 
+    if system_correct == 'mean':
+        system_shift = np.mean(mass_shift) 
+    else:
+        system_shift = np.median(mass_shift) 
     return system_shift
 
 
 # 计算修饰的精确质量 
-def accurate_mass_compute(lines, mass, common_dict):
+def accurate_mass_compute(lines, mass, common_dict, mod_correct='mean'):
     mass_list = []
     for line in lines:
         if mass not in line:
@@ -109,8 +111,11 @@ def accurate_mass_compute(lines, mass, common_dict):
     if len(mass_list) == 0: 
         return 0.0 
     else:
-        return np.median(mass_list)
-        # return np.mean(mass_list) 
+        if mod_correct == 'mean': 
+            return np.mean(mass_list) 
+        else: 
+            return np.median(mass_list)
+        
 
 
 # 计算分数加权后修饰的精确质量 
@@ -154,8 +159,8 @@ def q_value_filter(lines):
     return lines 
 
 
-
-def mass_correct(current_path, blind_path, mass_diff_list):
+#system_correct={mean, median}, mod_correct={mean, median, weight}
+def mass_correct(current_path, blind_path, mass_diff_list, system_correct='mean', mod_correct='mean'):
     # 读取常见修饰列表
     common_dict = common_dict_create(current_path)
 
@@ -168,13 +173,16 @@ def mass_correct(current_path, blind_path, mass_diff_list):
     # lines = q_value_filter(lines) 
 
     # 计算系统误差
-    system_shift = system_shift_compute(lines)
+    system_shift = system_shift_compute(lines, system_correct)
     
     # 计算未知修饰的精确质量
     mass_dict = {}
     for mass_diff in mass_diff_list: 
-        #accurate_mass_diff = accurate_mass_compute(lines, mass_diff, common_dict) 
-        accurate_mass_diff = weight_accurate_mass_compute(lines, mass_diff, common_dict)
+        if mod_correct == 'weight': 
+            accurate_mass_diff = weight_accurate_mass_compute(lines, mass_diff, common_dict) 
+        else: 
+            accurate_mass_diff = accurate_mass_compute(lines, mass_diff, common_dict, mod_correct) 
+
         mass_dict[mass_diff] = float('%.6f'%(accurate_mass_diff - system_shift)) 
     return mass_dict
 
@@ -471,4 +479,14 @@ def mass_select(mass_diff_list, k, name2mass):
             break
     return selected_list 
         
+
+# 读取unimod的质量，返回字典 
+def unimod_dict_generate(modification_dict): 
+    unimod_dict = {}
+    for key in modification_dict.keys():
+        unimod_mass = float(modification_dict[key].split('\n')[1].split()[2]) 
+        unimod_dict[key] = unimod_mass  
+    return unimod_dict 
+
+
 
