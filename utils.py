@@ -52,6 +52,8 @@ def parameter_file_read(path):
             parameter_dict['close_mass_diff_number'] = int(parameter_pick(lines[i])) 
         if 'min_mass_modification' in lines[i]:
             parameter_dict['min_mass_modification'] = float(parameter_pick(lines[i]))
+        if 'mass_diff_diff_range' in lines[i]:
+            parameter_dict['mass_diff_diff_range'] = int(parameter_pick(lines[i]))
     return parameter_dict
 
 
@@ -425,4 +427,6 @@ def expand_modification_ini(mass_diff_dict, mod_static_dict, current_path, ini_p
         for line in lines:
             f.write(line)
     return new_ini_path
+
+
 

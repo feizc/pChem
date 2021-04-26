@@ -14,7 +14,7 @@ def blind_search(current_path):
     pchem_cfg_path = os.path.join(current_path, 'pChem.cfg')
     blind_cfg_path = os.path.join(os.path.join(current_path, 'template'), 'blind.cfg')
 
-    parameter_dict = parameter_file_read(pchem_cfg_path)
+    parameter_dict = parameter_file_read(pchem_cfg_path) 
 
     
     # 读取所有的modification作为查找字典 
@@ -22,8 +22,6 @@ def blind_search(current_path):
     modification_dict = modification_ini_dict(modification_path)
     
     unimod_dict = unimod_dict_generate(modification_dict) 
-    print(unimod_dict) 
-
 
     # 重新生成modification.ini文件
     if parameter_dict['open_flag'] == 'True':
@@ -72,10 +70,11 @@ def blind_search(current_path):
 
     # 计算精确质量 
     #system_correct={mean, median}, mod_correct={mean, median, weight}
-    mass_diff_dict = mass_correct(current_path, blind_path, mass_diff_list, system_correct='median', mod_correct='median') 
+    mass_diff_dict = mass_correct(current_path, blind_path, mass_diff_list, system_correct='mean', mod_correct='mean') 
+    #mass_diff_dict = mass_correct(current_path, blind_path, mass_diff_list, system_correct='median', mod_correct='median') 
 
     # 将统计结果写入结果文件 
-    new_summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, parameter_dict) 
+    new_summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, parameter_dict, unimod_dict) 
     
 
 

@@ -10,11 +10,11 @@ import math
 
 element_dict={
     "C": 12.0000000,
-    "H": 1.0078246,
+    "H": 1.00782503207,
     "Pm": 1.00727647012,
-    "N": 14.0030732,
-    "O": 15.9949141,
-    "S": 31.972070
+    "N": 14.0030740048,
+    "O": 15.99491461956,
+    "S": 31.972071
 }
 
 amino_acid_dict={
@@ -69,7 +69,7 @@ def common_dict_create(current_path):
     return common_dict
 
 
-# 计算系统误差
+# 计算系统误差(绝对值)
 def system_shift_compute(lines, system_correct='mean'):
     mass_shift = []
     for line in lines:
@@ -85,15 +85,40 @@ def system_shift_compute(lines, system_correct='mean'):
     return system_shift
 
 
+# 计算系统误差(ppm) 
+def ppm_system_shift_compute(lines, system_correct='mean'):
+    mass_shift = []
+    for line in lines:
+        line = line.split('\t')
+        if len(line[10]):
+            continue
+        else:
+            ppm = float(line[7]) * 1000000 / float(line[6]) 
+            mass_shift.append(ppm) 
+    if system_correct == 'mean': 
+        # 去掉大于3倍标准差的值 
+        # print(len(mass_shift))
+        m = np.mean(mass_shift)
+        sd = (sum([(v - m)**2 for v in mass_shift])/(len(mass_shift)-1))**0.5
+        new_mass_shift = [v for v in mass_shift if abs(v - m)/sd <= 3]
+        system_shift = np.mean(new_mass_shift) 
+        # print(len(new_mass_shift))
+    else:
+        system_shift = np.median(mass_shift) 
+    return system_shift
+
+
 # 计算修饰的精确质量 
-def accurate_mass_compute(lines, mass, common_dict, mod_correct='mean'):
+def accurate_mass_compute(lines, mass, common_dict, factor_shift, mod_correct='mean'):
     mass_list = []
     for line in lines:
         if mass not in line:
+            continue 
+        line = line.split('\t') 
+        mod_list = line[10].split(';')[:-1] 
+        if len(mod_list) > 1:
             continue
-        line = line.split('\t')
-        mod_list = line[10].split(';')[:-1]
-        parent_mass = float(line[2])
+        parent_mass = float(line[2]) * factor_shift
         sequence = line[5]
         amino_mass = 0.0
         for a in sequence: 
@@ -173,17 +198,22 @@ def mass_correct(current_path, blind_path, mass_diff_list, system_correct='mean'
     # lines = q_value_filter(lines) 
 
     # 计算系统误差
-    system_shift = system_shift_compute(lines, system_correct)
-    
+    system_shift = ppm_system_shift_compute(lines, system_correct) 
+    factor_shift = 1.0 / (1.0 + system_shift/ 1000000.0) 
+
     # 计算未知修饰的精确质量
     mass_dict = {}
     for mass_diff in mass_diff_list: 
         if mod_correct == 'weight': 
             accurate_mass_diff = weight_accurate_mass_compute(lines, mass_diff, common_dict) 
         else: 
-            accurate_mass_diff = accurate_mass_compute(lines, mass_diff, common_dict, mod_correct) 
+            accurate_mass_diff = accurate_mass_compute(lines, mass_diff, common_dict, factor_shift, mod_correct) 
+        # 使用绝对值做校准
+        # mass_dict[mass_diff] = float('%.6f'%(accurate_mass_diff - system_shift)) 
 
-        mass_dict[mass_diff] = float('%.6f'%(accurate_mass_diff - system_shift)) 
+        # 使用ppm做校准 
+        # print(accurate_mass_diff)
+        mass_dict[mass_diff] = float('%.6f'%(accurate_mass_diff))
     return mass_dict
 
 
@@ -296,12 +326,13 @@ def summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, mass_
 
 
 # 只输出轻标修饰到结果文件 
-def new_summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, parameter_dict): 
-    mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank  = \
-        mass_refine(mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, parameter_dict) 
+# 根据mass_diff_pair_pair输出结果
+def new_summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, parameter_dict, unimod_dict): 
+    mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank, unimod_list  = \
+        mass_refine(mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, parameter_dict, unimod_dict) 
     lines = [] 
     lines.append('Rank \tMass Shift \tIsotopic Label \tPeptide Total \tPSM Total \tPeptide L|H \tPSM L|H \
-                \tTop1 Site \tTop1 Probability \tAccurate Mass \tSite (Location /Probability)-Others \n')
+                \tTop1 Site \tTop1 Probability \tAccurate Mass \tSite (Location /Probability)-Others \tAdditional Modification\n')
     
     idx = 1
     for mass_pair in mass_diff_pair_rank: 
@@ -316,7 +347,7 @@ def new_summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, m
         line = str(idx) + '\t' + 'PFIND_DELTA_' + light_mod + '\t' + 'Yes' + '\t' + str(mod2pep[light_mod] + mod2pep[heavy_mod]) + '\t' + \
             str(mod_number_dict[light_mod] + mod_number_dict[heavy_mod]) + '\t' + str(mod2pep[light_mod]) + '|' + str(mod2pep[heavy_mod]) + '\t' + \
             str(mod_number_dict[light_mod]) + '|' + str(mod_number_dict[heavy_mod]) + '\t' + Top1_site + '\t' + Top1_pro + '\t' + str(mass_diff_dict[light_mod]) + '|' + str(mass_diff_dict[heavy_mod]) + \
-            '\t' + Others + '\n' 
+            '\t' + Others + '\t' + unimod_list[idx-1] + '\n' 
         lines.append(line) 
         idx += 1 
     with open(os.path.join(current_path, 'pChem.summary'), 'w', encoding='utf-8') as f:
@@ -357,7 +388,7 @@ def heat_map_plot(current_path, mass_diff_pair_rank, mod_static_dict, mod_number
 
 
 # 保留整数，其余信息进行合并 
-def mass_refine(mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, parameter_dict): 
+def mass_refine(mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, parameter_dict, unimod_dict): 
     new_mod_static_dict, new_mod_number_dict, new_mod2pep, new_mass_diff_dict = {}, {}, {}, {}
     new_mass_list = [] 
     int_mass_list = []
@@ -365,6 +396,7 @@ def mass_refine(mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, param
         if mass_diff_dict[mass] < 200.0: 
             continue 
         simple_mass = str(int(float(mass.split('_')[2]))) 
+        # 不是第一次出现
         if simple_mass in new_mass_list: 
             new_mod_static_dict[simple_mass] = new_mod_static_dict[simple_mass] + mod_static_dict[mass] 
             new_mod_number_dict[simple_mass] = new_mod_number_dict[simple_mass] + mod_number_dict[mass]
@@ -376,9 +408,82 @@ def mass_refine(mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, param
             new_mod_number_dict[simple_mass] = mod_number_dict[mass]
             new_mod2pep[simple_mass] = int(mod2pep[mass]) 
             new_mass_diff_dict[simple_mass] = mass_diff_dict[mass] 
-    rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank = label_determine(new_mod_number_dict, int_mass_list, int(parameter_dict['mass_diff_diff']))
-    return new_mod_static_dict, new_mod_number_dict, new_mod2pep, new_mass_diff_dict, rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank  
+    # rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank = label_determine(new_mod_number_dict, int_mass_list, int(parameter_dict['mass_diff_diff']))
+    rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank = accurate_label_determine(new_mod_number_dict, new_mass_diff_dict, parameter_dict)
+    unimod_list = unimod_match(unimod_dict, mass_diff_pair_rank, new_mass_diff_dict)
+    return new_mod_static_dict, new_mod_number_dict, new_mod2pep, new_mass_diff_dict, rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank, unimod_list  
 
+
+# 精确质量法确定轻重标记
+# parameter_dict['mass_diff_diff'] = 6.020132
+# parameter_dict['mass_diff_diff_range'] = 100 
+def accurate_label_determine(mod_number_dict, mass_diff_dict, parameter_dict): 
+    rank_dict = {} 
+    label_dict = {} 
+    # 按照出现频率进行排序 
+    rank_tuple = sorted(mod_number_dict.items(), key=lambda x: -x[1]) 
+    # 将数字化修饰按照频率从高到低  
+    freq_list = [int(mod[0]) for mod in rank_tuple] 
+    # 记录已经配对成功的修饰
+    mass_diff_rank = [] 
+    mass_diff_pair_rank = [] 
+    id = 1 
+    for i in range(len(freq_list)):
+        mod = rank_tuple[i][0]
+        if mod_number_dict[mod] < 4:
+            break 
+        if mod in mass_diff_rank: 
+            continue 
+        # 只报出找到匹配的修饰对
+        for j in range(i+1, len(freq_list)): 
+            if rank_tuple[j][0] in mass_diff_rank:
+                continue 
+            pair_mod = rank_tuple[j][0]
+            if ppm_calculate(mass_diff_dict[mod], mass_diff_dict[pair_mod]) < parameter_dict['mass_diff_diff_range']*1.5: 
+                if mass_diff_dict[mod] < mass_diff_dict[pair_mod]: 
+                    label_dict[mod] = 'L'
+                    label_dict[pair_mod] = 'H'
+                    mass_diff_pair_rank.append([mod, pair_mod])
+                else:
+                    label_dict[mod] = 'H'
+                    label_dict[pair_mod] = 'L'
+                    mass_diff_pair_rank.append([pair_mod, mod])
+                
+                mass_diff_rank.append(mod)
+                mass_diff_rank.append(pair_mod) 
+                rank_dict[mod] = id 
+                rank_dict[pair_mod] = id 
+                id += 1 
+                break 
+    return rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank 
+
+
+def ppm_calculate(a, b):
+    return abs(abs(b-a)-6.020131)/6.020132*1000000 
+
+
+# 根据质量差判断未知修饰之间的可能
+def unimod_match(unimod_dict, mass_diff_pair_rank, mass_diff_dict): 
+    unimod_list = []
+    unimod_list.append('') 
+    if len(mass_diff_pair_rank) <= 1:
+        return unimod_list 
+    baseline = mass_diff_pair_rank[0][0] 
+    baseline_mass = mass_diff_dict[baseline]
+    for mass_diff_pair in mass_diff_pair_rank[1:]:
+        t_unimod = ''
+        cur_mod = mass_diff_pair[0]
+        cur_mod_mass = mass_diff_dict[cur_mod]
+        target_diff = baseline_mass - cur_mod_mass 
+        for k, v in unimod_dict.items():
+            if abs(v - target_diff) < 0.001: 
+                t_unimod += k + ';' 
+        target_diff = cur_mod_mass - baseline_mass 
+        for k, v in unimod_dict.items():
+            if abs(v - target_diff) < 0.001: 
+                t_unimod += k + ';'
+        unimod_list.append(t_unimod)
+    return unimod_list 
 
 
 # 找到轻重标记 
@@ -485,8 +590,15 @@ def unimod_dict_generate(modification_dict):
     unimod_dict = {}
     for key in modification_dict.keys():
         unimod_mass = float(modification_dict[key].split('\n')[1].split()[2]) 
-        unimod_dict[key] = unimod_mass  
+        unimod_name = key.split('[')[0]
+        unimod_dict[unimod_name] = unimod_mass  
     return unimod_dict 
 
 
-
+if __name__ == "__main__": 
+    P = 'NAHSATTWSGQYVGGAEAR' 
+    mass = 0.0 
+    for a in P:
+        mass += amino_acid_dict[a]
+    mass += proton_mass + h2o_mass
+    print(mass)
