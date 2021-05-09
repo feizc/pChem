@@ -140,7 +140,39 @@ def accurate_mass_compute(lines, mass, common_dict, factor_shift, mod_correct='m
             return np.mean(mass_list) 
         else: 
             return np.median(mass_list)
-        
+
+
+# 改写pfind结果文件 
+def pfind_result_rewrite(blind_path, origin_lines, common_dict, factor_shift): 
+    new_lines = []
+    new_lines.append(origin_lines[0][:-1] + '\t Accurate modification mass \n')
+    for line in origin_lines[1:]: 
+        line_list = line.split('\t') 
+        mod_list = line_list[10]
+        if 'PFIND_DELTA' in mod_list: 
+            mod_list = mod_list.split(';')[:-1] 
+            parent_mass = float(line_list[2]) * factor_shift
+            sequence = line_list[5]
+            amino_mass = 0.0
+            for a in sequence: 
+                if a in amino_acid_dict.keys():
+                    amino_mass += amino_acid_dict[a]
+            mod_mass = parent_mass - amino_mass - proton_mass - h2o_mass
+            if len(mod_list) > 1:
+                for mod in mod_list:
+                    if 'PFIND_DELTA' in mod:
+                        continue
+                    mod = mod.split(',')[1]
+                    mod_mass -= common_dict[mod] 
+            new_lines.append(line[:-1] + '\t' + str(float('%.6f'%(mod_mass))) + '\n') 
+        else:
+            new_lines.append(line) 
+    with open(blind_path, 'w', encoding='utf-8') as f: 
+        for line in new_lines:
+            f.write(line)
+
+
+
 
 
 # 计算分数加权后修饰的精确质量 
@@ -184,14 +216,15 @@ def q_value_filter(lines):
     return lines 
 
 
-#system_correct={mean, median}, mod_correct={mean, median, weight}
+# system_correct={mean, median}, mod_correct={mean, median, weight}
 def mass_correct(current_path, blind_path, mass_diff_list, system_correct='mean', mod_correct='mean'):
     # 读取常见修饰列表
     common_dict = common_dict_create(current_path)
 
     # 读取盲搜鉴定结果文件
     with open(blind_path, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
+        lines = f.readlines() 
+    origin_lines = lines 
     lines = lines[1:] 
     
     # 只选择q-value < 0.001的谱图 
@@ -213,7 +246,8 @@ def mass_correct(current_path, blind_path, mass_diff_list, system_correct='mean'
 
         # 使用ppm做校准 
         # print(accurate_mass_diff)
-        mass_dict[mass_diff] = float('%.6f'%(accurate_mass_diff))
+        mass_dict[mass_diff] = float('%.6f'%(accurate_mass_diff)) 
+    pfind_result_rewrite(blind_path, origin_lines, common_dict, factor_shift)
     return mass_dict
 
 
@@ -259,10 +293,15 @@ def mass_diff_diff_filter(name2mass, mass_diff_list, mass_diff_diff):
     return new_refined_list 
 
 
+
 # 统计修饰发生的位点分布 
-def mass_static(blind_path, current_path, mass_diff_list): 
+def mass_static(blind_path, current_path, mass_diff_list, side_position='False'): 
     mod_position_dict = {} 
     mod_number_dict = {} 
+    if side_position == 'False': 
+        side_flag = False
+    else:
+        side_flag = True
     for mass in mass_diff_list:
         mod_position_dict[mass] = [] 
         mod_number_dict[mass] = 0 
@@ -281,11 +320,13 @@ def mass_static(blind_path, current_path, mass_diff_list):
                 pos = int(pos) 
                 mod_number_dict[mod_name] += 1
                 if pos == 0 or pos == 1:
-                    mod_position_dict[mod_name].append(sequence[0])
-                    mod_position_dict[mod_name].append('N-SIDE')
+                    mod_position_dict[mod_name].append(sequence[0]) 
+                    if side_flag == True:
+                        mod_position_dict[mod_name].append('N-SIDE')
                 elif pos >= len(sequence):
-                    mod_position_dict[mod_name].append(sequence[-1])
-                    mod_position_dict[mod_name].append('C-SIDE')
+                    mod_position_dict[mod_name].append(sequence[-1]) 
+                    if side_flag == True:
+                        mod_position_dict[mod_name].append('C-SIDE')
                 else:
                     mod_position_dict[mod_name].append(sequence[pos-1])
     
@@ -295,6 +336,7 @@ def mass_static(blind_path, current_path, mass_diff_list):
         mod_static_dict[mod_name] = counter 
     
     return mod_static_dict, mod_number_dict  
+
 
 
 # 写pchem.summary结果文件
@@ -325,10 +367,11 @@ def summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, mass_
     # print(mod_static_dict)
 
 
+
 # 只输出轻标修饰到结果文件 
 # 根据mass_diff_pair_pair输出结果
 def new_summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, parameter_dict, unimod_dict): 
-    mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank, unimod_list  = \
+    mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank, unimod_list, ppm_error_dict = \
         mass_refine(mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, parameter_dict, unimod_dict) 
     lines = [] 
     lines.append('Rank \tMass Shift \tIsotopic Label \tPeptide Total \tPSM Total \tPeptide L|H \tPSM L|H \
@@ -346,7 +389,7 @@ def new_summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, m
             Others += local_list[j][0] + '(' + str(round(local_list[j][1]/mod_number_dict[light_mod],3)) + '); ' 
         line = str(idx) + '\t' + 'PFIND_DELTA_' + light_mod + '\t' + 'Yes' + '\t' + str(mod2pep[light_mod] + mod2pep[heavy_mod]) + '\t' + \
             str(mod_number_dict[light_mod] + mod_number_dict[heavy_mod]) + '\t' + str(mod2pep[light_mod]) + '|' + str(mod2pep[heavy_mod]) + '\t' + \
-            str(mod_number_dict[light_mod]) + '|' + str(mod_number_dict[heavy_mod]) + '\t' + Top1_site + '\t' + Top1_pro + '\t' + str(mass_diff_dict[light_mod]) + '|' + str(mass_diff_dict[heavy_mod]) + \
+            str(mod_number_dict[light_mod]) + '|' + str(mod_number_dict[heavy_mod]) + '\t' + Top1_site + '\t' + Top1_pro + '\t' + str(mass_diff_dict[light_mod]) + '|' + str(mass_diff_dict[heavy_mod]) + '(' + str(int(ppm_error_dict[light_mod])) + ' ppm)' + \
             '\t' + Others + '\t' + unimod_list[idx-1] + '\n' 
         lines.append(line) 
         idx += 1 
@@ -354,7 +397,10 @@ def new_summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, m
         for line in lines:
             f.write(line) 
     # 同时保存热力图 
-    heat_map_plot(current_path, mass_diff_pair_rank, mod_static_dict, mod_number_dict)
+    if len(lines) < 2: 
+        print('The number of unknown modification is none, please expand the error range.')
+    else:
+        heat_map_plot(current_path, mass_diff_pair_rank, mod_static_dict, mod_number_dict)
 
 
 
@@ -408,18 +454,31 @@ def mass_refine(mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, param
             new_mod_number_dict[simple_mass] = mod_number_dict[mass]
             new_mod2pep[simple_mass] = int(mod2pep[mass]) 
             new_mass_diff_dict[simple_mass] = mass_diff_dict[mass] 
-    # rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank = label_determine(new_mod_number_dict, int_mass_list, int(parameter_dict['mass_diff_diff']))
-    rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank = accurate_label_determine(new_mod_number_dict, new_mass_diff_dict, parameter_dict)
+    # rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank = label_determine(new_mod_number_dict, int_mass_list, int(parameter_dict['mass_diff_diff'])) 
+    min_num = modification_filter_frequency(new_mod_number_dict, parameter_dict) 
+    rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank, ppm_error_dict = accurate_label_determine(new_mod_number_dict, new_mass_diff_dict, parameter_dict, min_num)
     unimod_list = unimod_match(unimod_dict, mass_diff_pair_rank, new_mass_diff_dict)
-    return new_mod_static_dict, new_mod_number_dict, new_mod2pep, new_mass_diff_dict, rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank, unimod_list  
+    return new_mod_static_dict, new_mod_number_dict, new_mod2pep, new_mass_diff_dict, rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank, unimod_list, ppm_error_dict   
+
+
+# 删选低于频率低于filter_frequency的修饰
+def modification_filter_frequency(mod_number_dict, parameter_dict): 
+    total_sum = 0 
+    for mod in mod_number_dict.keys():
+        total_sum += mod_number_dict[mod] 
+    if parameter_dict['filter_frequency'] < 0 or parameter_dict['filter_frequency'] > 99:
+        parameter_dict['filter_frequency'] = 0
+    min_num = int(total_sum * parameter_dict['filter_frequency'] * 0.01) 
+    return min_num 
 
 
 # 精确质量法确定轻重标记
 # parameter_dict['mass_diff_diff'] = 6.020132
 # parameter_dict['mass_diff_diff_range'] = 100 
-def accurate_label_determine(mod_number_dict, mass_diff_dict, parameter_dict): 
+def accurate_label_determine(mod_number_dict, mass_diff_dict, parameter_dict, min_num): 
     rank_dict = {} 
     label_dict = {} 
+    ppm_error_dict = {} 
     # 按照出现频率进行排序 
     rank_tuple = sorted(mod_number_dict.items(), key=lambda x: -x[1]) 
     # 将数字化修饰按照频率从高到低  
@@ -429,8 +488,9 @@ def accurate_label_determine(mod_number_dict, mass_diff_dict, parameter_dict):
     mass_diff_pair_rank = [] 
     id = 1 
     for i in range(len(freq_list)):
-        mod = rank_tuple[i][0]
-        if mod_number_dict[mod] < 4:
+        mod = rank_tuple[i][0] 
+        # 最小数目限制，认为噪声 
+        if mod_number_dict[mod] < min_num:
             break 
         if mod in mass_diff_rank: 
             continue 
@@ -438,16 +498,21 @@ def accurate_label_determine(mod_number_dict, mass_diff_dict, parameter_dict):
         for j in range(i+1, len(freq_list)): 
             if rank_tuple[j][0] in mass_diff_rank:
                 continue 
-            pair_mod = rank_tuple[j][0]
-            if ppm_calculate(mass_diff_dict[mod], mass_diff_dict[pair_mod]) < parameter_dict['mass_diff_diff_range']*1.5: 
+            pair_mod = rank_tuple[j][0] 
+            if mod_number_dict[pair_mod] < min_num: 
+                continue 
+            ppm_error = ppm_calculate(mass_diff_dict[mod], mass_diff_dict[pair_mod])
+            if ppm_error < parameter_dict['mass_diff_diff_range']*1.5: 
                 if mass_diff_dict[mod] < mass_diff_dict[pair_mod]: 
                     label_dict[mod] = 'L'
                     label_dict[pair_mod] = 'H'
                     mass_diff_pair_rank.append([mod, pair_mod])
+                    ppm_error_dict[mod] = ppm_error 
                 else:
                     label_dict[mod] = 'H'
                     label_dict[pair_mod] = 'L'
-                    mass_diff_pair_rank.append([pair_mod, mod])
+                    mass_diff_pair_rank.append([pair_mod, mod]) 
+                    ppm_error_dict[pair_mod] = ppm_error
                 
                 mass_diff_rank.append(mod)
                 mass_diff_rank.append(pair_mod) 
@@ -455,7 +520,7 @@ def accurate_label_determine(mod_number_dict, mass_diff_dict, parameter_dict):
                 rank_dict[pair_mod] = id 
                 id += 1 
                 break 
-    return rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank 
+    return rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank, ppm_error_dict  
 
 
 def ppm_calculate(a, b):

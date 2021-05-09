@@ -260,6 +260,7 @@ def ion_type_determine(current_path, modification_list, modification_dict):
 
 if __name__ == "__main__": 
     current_path = os.getcwd() 
+    # 需要输入待确认的未知
     modification_list = ['PFIND_DELTA_252', 'PFIND_DELTA_258']
     modification_dict = {'PFIND_DELTA_252': 252.121858, 'PFIND_DELTA_258':258.141955}
     ion_type_determine(current_path, modification_list, modification_dict) 

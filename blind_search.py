@@ -44,7 +44,6 @@ def blind_search(current_path):
     receive = os.system(cmd) 
     print(receive)
     '''
-
     
     # 读取鉴定结果，生成位置修饰的候选列表
     mass_diff_list_generate(res_path, current_path)
@@ -66,7 +65,7 @@ def blind_search(current_path):
 
     # 过滤小于200和复数修饰 
     name2mass, mass_diff_list = small_delta_filter(mass_diff_list, parameter_dict['min_mass_modification']) 
-    mod_static_dict, mod_number_dict = mass_static(blind_path, current_path, mass_diff_list) 
+    mod_static_dict, mod_number_dict = mass_static(blind_path, current_path, mass_diff_list, parameter_dict['side_position']) 
 
     # 计算精确质量 
     #system_correct={mean, median}, mod_correct={mean, median, weight}

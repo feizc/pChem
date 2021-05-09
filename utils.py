@@ -53,7 +53,11 @@ def parameter_file_read(path):
         if 'min_mass_modification' in lines[i]:
             parameter_dict['min_mass_modification'] = float(parameter_pick(lines[i]))
         if 'mass_diff_diff_range' in lines[i]:
-            parameter_dict['mass_diff_diff_range'] = int(parameter_pick(lines[i]))
+            parameter_dict['mass_diff_diff_range'] = int(parameter_pick(lines[i])) 
+        if 'filter_frequency' in lines[i]: 
+            parameter_dict['filter_frequency'] = float(parameter_pick(lines[i])) 
+        if 'side_position' in lines[i]: 
+            parameter_dict['side_position'] = parameter_pick(lines[i])
     return parameter_dict
 
 
