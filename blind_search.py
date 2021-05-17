@@ -4,8 +4,9 @@ import os
 from utils import parameter_file_read, modification_ini_path, modification_ini_dict, \
     modification_ini_generation, blind_cfg_write, search_exe_path, mass_diff_list_generate, \
     modification_ini_generation_from_param, mass_diff_read
-from mass_diff_correction import mass_correct, small_delta_filter, mass_diff_diff_filter, \
-    mass_static, summary_write, mass_select, new_summary_write, unimod_dict_generate   
+from mass_diff_correction import mass_correct, small_delta_filter, \
+    mass_static, summary_write, mass_select, new_summary_write, unimod_dict_generate, \
+    summary_filter, explain_dict_generate
 
 
 def blind_search(current_path):
@@ -21,7 +22,8 @@ def blind_search(current_path):
     modification_path = modification_ini_path(parameter_dict)
     modification_dict = modification_ini_dict(modification_path)
     
-    unimod_dict = unimod_dict_generate(modification_dict) 
+    # unimod_dict = unimod_dict_generate(modification_dict) 
+    explain_dict = explain_dict_generate(current_path)
 
     # 重新生成modification.ini文件
     if parameter_dict['open_flag'] == 'True':
@@ -73,8 +75,15 @@ def blind_search(current_path):
     #mass_diff_dict = mass_correct(current_path, blind_path, mass_diff_list, system_correct='median', mod_correct='median') 
 
     # 将统计结果写入结果文件 
-    new_summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, parameter_dict, unimod_dict) 
+    new_summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, parameter_dict, explain_dict) 
     
+    # 删选结果文件 
+    # summary_filter(current_path, parameter_dict) 
+    
+    # 统计最终数据集级别的指标并输出 
+    
+
+
 
 
 if __name__ == "__main__": 

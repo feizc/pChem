@@ -44,8 +44,8 @@ def parameter_file_read(path):
             parameter_dict['open_flag'] = parameter_pick(lines[i])
         if 'common_modification_list' in lines[i]:
             parameter_dict['common_modification_list'] = parameter_pick(lines[i]) 
-        if 'mass_diff_diff' in lines[i]:
-            parameter_dict['mass_diff_diff'] = float(parameter_pick(lines[i])) 
+        if 'mass_of_diff_diff' in lines[i]:
+            parameter_dict['mass_of_diff_diff'] = float(parameter_pick(lines[i])) 
         if 'common_modification_number' in lines[i]:
             parameter_dict['common_modification_number'] = int(parameter_pick(lines[i]))
         if 'close_mass_diff_number' in lines[i]:

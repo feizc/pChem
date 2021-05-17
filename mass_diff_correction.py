@@ -396,22 +396,26 @@ def new_summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, m
     with open(os.path.join(current_path, 'pChem.summary'), 'w', encoding='utf-8') as f:
         for line in lines:
             f.write(line) 
+    # 删除PSM 
+    filter_mod = [mod[0] for mod in mass_diff_pair_rank] 
+    filter_mod = summary_filter(current_path, parameter_dict, filter_mod) 
+    # print(filter_mod)
     # 同时保存热力图 
     if len(lines) < 2: 
         print('The number of unknown modification is none, please expand the error range.')
     else:
-        heat_map_plot(current_path, mass_diff_pair_rank, mod_static_dict, mod_number_dict)
+        heat_map_plot(current_path, filter_mod, mod_static_dict, mod_number_dict)
 
 
 
 # 绘制结果热力图
-def heat_map_plot(current_path, mass_diff_pair_rank, mod_static_dict, mod_number_dict): 
+def heat_map_plot(current_path, filter_mod, mod_static_dict, mod_number_dict): 
     y_stick = ["N-SIDE", "C-SIDE", "A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "V", "W", "X", "Y"] 
     y_dict = {}
     for i in range(len(y_stick)):
         y_dict[y_stick[i]] = i 
     
-    x_stick = [mod[0] for mod in mass_diff_pair_rank] 
+    x_stick = filter_mod
     mod_map = {}
     
     for i in range(len(x_stick)):
@@ -425,11 +429,12 @@ def heat_map_plot(current_path, mass_diff_pair_rank, mod_static_dict, mod_number
     
     pd_mod_map = pd.DataFrame(mod_map, index=y_stick, columns=x_stick) 
     # print(pd_mod_map)
-    ax = sns.heatmap(pd_mod_map, vmin=0.0, vmax=1.0, cmap='YlGnBu', annot=True, annot_kws={"size":4})
+    # ax = sns.heatmap(pd_mod_map, vmin=0.0, vmax=1.0, cmap='YlGnBu', annot=True, annot_kws={"size":4})
+    ax = sns.heatmap(pd_mod_map, vmin=0.0, vmax=1.0, cmap='YlGnBu')
     plt.ylabel('amino acid selectivity')
     plt.xlabel('probes')
-    png_path = os.path.join(current_path, 'heat_map.png') 
-    plt.savefig(png_path, dpi=200)
+    png_path = os.path.join(current_path, 'heat_map.pdf') 
+    plt.savefig(png_path, dpi=200, bbox_inches='tight')
     
 
 
@@ -455,8 +460,8 @@ def mass_refine(mod_static_dict, mod_number_dict, mod2pep, mass_diff_dict, param
             new_mod2pep[simple_mass] = int(mod2pep[mass]) 
             new_mass_diff_dict[simple_mass] = mass_diff_dict[mass] 
     # rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank = label_determine(new_mod_number_dict, int_mass_list, int(parameter_dict['mass_diff_diff'])) 
-    min_num = modification_filter_frequency(new_mod_number_dict, parameter_dict) 
-    rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank, ppm_error_dict = accurate_label_determine(new_mod_number_dict, new_mass_diff_dict, parameter_dict, min_num)
+    # min_num = modification_filter_frequency(new_mod_number_dict, parameter_dict) 
+    rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank, ppm_error_dict = accurate_label_determine(new_mod_number_dict, new_mass_diff_dict, parameter_dict)
     unimod_list = unimod_match(unimod_dict, mass_diff_pair_rank, new_mass_diff_dict)
     return new_mod_static_dict, new_mod_number_dict, new_mod2pep, new_mass_diff_dict, rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank, unimod_list, ppm_error_dict   
 
@@ -466,16 +471,16 @@ def modification_filter_frequency(mod_number_dict, parameter_dict):
     total_sum = 0 
     for mod in mod_number_dict.keys():
         total_sum += mod_number_dict[mod] 
-    if parameter_dict['filter_frequency'] < 0 or parameter_dict['filter_frequency'] > 99:
+    if parameter_dict['filter_frequency'] <0 or parameter_dict['filter_frequency'] > 99:
         parameter_dict['filter_frequency'] = 0
     min_num = int(total_sum * parameter_dict['filter_frequency'] * 0.01) 
     return min_num 
 
 
 # 精确质量法确定轻重标记
-# parameter_dict['mass_diff_diff'] = 6.020132
+# parameter_dict['mass_of_diff_diff'] = 6.020132
 # parameter_dict['mass_diff_diff_range'] = 100 
-def accurate_label_determine(mod_number_dict, mass_diff_dict, parameter_dict, min_num): 
+def accurate_label_determine(mod_number_dict, mass_diff_dict, parameter_dict): 
     rank_dict = {} 
     label_dict = {} 
     ppm_error_dict = {} 
@@ -490,7 +495,7 @@ def accurate_label_determine(mod_number_dict, mass_diff_dict, parameter_dict, mi
     for i in range(len(freq_list)):
         mod = rank_tuple[i][0] 
         # 最小数目限制，认为噪声 
-        if mod_number_dict[mod] < min_num:
+        if mod_number_dict[mod] < 4:
             break 
         if mod in mass_diff_rank: 
             continue 
@@ -499,10 +504,10 @@ def accurate_label_determine(mod_number_dict, mass_diff_dict, parameter_dict, mi
             if rank_tuple[j][0] in mass_diff_rank:
                 continue 
             pair_mod = rank_tuple[j][0] 
-            if mod_number_dict[pair_mod] < min_num: 
-                continue 
-            ppm_error = ppm_calculate(mass_diff_dict[mod], mass_diff_dict[pair_mod])
-            if ppm_error < parameter_dict['mass_diff_diff_range']*1.5: 
+            #if mod_number_dict[pair_mod] < min_num: 
+            #    continue 
+            ppm_error = ppm_calculate(mass_diff_dict[mod], mass_diff_dict[pair_mod], parameter_dict['mass_of_diff_diff'])
+            if ppm_error < parameter_dict['mass_diff_diff_range']: 
                 if mass_diff_dict[mod] < mass_diff_dict[pair_mod]: 
                     label_dict[mod] = 'L'
                     label_dict[pair_mod] = 'H'
@@ -523,8 +528,9 @@ def accurate_label_determine(mod_number_dict, mass_diff_dict, parameter_dict, mi
     return rank_dict, label_dict, mass_diff_rank, mass_diff_pair_rank, ppm_error_dict  
 
 
-def ppm_calculate(a, b):
-    return abs(abs(b-a)-6.020131)/6.020132*1000000 
+# 防止分母为0报错 
+def ppm_calculate(a, b, mass_diff_diff): 
+    return abs(abs(b-a)-mass_diff_diff)/(mass_diff_diff+0.000001)*1000000 
 
 
 # 根据质量差判断未知修饰之间的可能
@@ -541,11 +547,11 @@ def unimod_match(unimod_dict, mass_diff_pair_rank, mass_diff_dict):
         cur_mod_mass = mass_diff_dict[cur_mod]
         target_diff = baseline_mass - cur_mod_mass 
         for k, v in unimod_dict.items():
-            if abs(v - target_diff) < 0.001: 
+            if abs(v - target_diff) < 0.1: 
                 t_unimod += k + ';' 
         target_diff = cur_mod_mass - baseline_mass 
         for k, v in unimod_dict.items():
-            if abs(v - target_diff) < 0.001: 
+            if abs(v - target_diff) < 0.1: 
                 t_unimod += k + ';'
         unimod_list.append(t_unimod)
     return unimod_list 
@@ -658,6 +664,57 @@ def unimod_dict_generate(modification_dict):
         unimod_name = key.split('[')[0]
         unimod_dict[unimod_name] = unimod_mass  
     return unimod_dict 
+
+
+# 读取解释性的修饰 
+def explain_dict_generate(current_path): 
+    explain_file = os.path.join(current_path, 'explain_modification.ini') 
+    with open(explain_file, 'r', encoding='utf') as f: 
+        lines = f.readlines() 
+    explain_dict = {}
+    for i in range(len(lines)): 
+        if len(lines[i]) < 4:
+            break 
+        if 'name' in lines[i]: 
+            mod_name = lines[i].split()[0].split('=')[1] 
+            mod_mass = float(lines[i+1].split()[2]) 
+            explain_dict[mod_name] = mod_mass 
+    return explain_dict 
+            
+
+
+# 删选PSM低于指定阈值的输出 
+def summary_filter(current_path, parameter_dict, filter_mod): 
+    if parameter_dict['filter_frequency'] <= 0.0:
+        return filter_mod
+    if parameter_dict['filter_frequency'] > 100.0:
+        print('filter_frequency out of range!') 
+        return filter_mod 
+    
+    summary_path = os.path.join(current_path, 'pChem.summary')
+    new_filter_mod = []
+    with open(summary_path, 'r', encoding='utf-8') as f: 
+        lines = f.readlines() 
+    total_psm = 0 
+    for line in lines[1:]: 
+        if len(line) < 5:
+            break 
+        total_psm += int(line.split('\t')[4]) 
+    min_psm = parameter_dict['filter_frequency'] * total_psm * 0.01 
+    new_lines = []
+    new_lines.append(lines[0]) 
+    i = 1 
+    for line in lines[1:]: 
+        if int(line.split('\t')[4]) >= min_psm: 
+            new_filter_mod.append(line.split('\t')[1][12:])
+            new_lines.append(str(i) + line[1:]) 
+            i += 1 
+    # print(new_lines) 
+    with open(summary_path, 'w', encoding='utf-8') as f: 
+        for line in new_lines: 
+            f.write(line) 
+    return new_filter_mod
+
 
 
 if __name__ == "__main__": 
