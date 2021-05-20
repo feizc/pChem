@@ -393,13 +393,14 @@ def new_summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, m
             '\t' + Others + '\t' + unimod_list[idx-1] + '\n' 
         lines.append(line) 
         idx += 1 
+    
+
     with open(os.path.join(current_path, 'pChem.summary'), 'w', encoding='utf-8') as f:
         for line in lines:
             f.write(line) 
     # 删除PSM 
     filter_mod = [mod[0] for mod in mass_diff_pair_rank] 
     filter_mod = summary_filter(current_path, parameter_dict, filter_mod) 
-    # print(filter_mod)
     # 同时保存热力图 
     if len(lines) < 2: 
         print('The number of unknown modification is none, please expand the error range.')
@@ -685,7 +686,8 @@ def explain_dict_generate(current_path):
 
 # 删选PSM低于指定阈值的输出 
 def summary_filter(current_path, parameter_dict, filter_mod): 
-    if parameter_dict['filter_frequency'] <= 0.0:
+    if parameter_dict['filter_frequency'] < 0.0:
+        print('filter_frequency out of range!')
         return filter_mod
     if parameter_dict['filter_frequency'] > 100.0:
         print('filter_frequency out of range!') 
@@ -709,11 +711,52 @@ def summary_filter(current_path, parameter_dict, filter_mod):
             new_filter_mod.append(line.split('\t')[1][12:])
             new_lines.append(str(i) + line[1:]) 
             i += 1 
-    # print(new_lines) 
+    # print(new_lines)  
+    metric_evaluation(current_path, parameter_dict)  
     with open(summary_path, 'w', encoding='utf-8') as f: 
         for line in new_lines: 
             f.write(line) 
     return new_filter_mod
+
+
+
+# 数据集级别指标评价 
+# 效率： mod_psm /  all_psm, 均一：max_mod_psm / mod_psm, 位点选择性 
+def metric_evaluation(current_path, parameter_dict): 
+    # print(current_path) 
+    # print(parameter_dict)
+    blind_res = os.path.join(parameter_dict['output_path'], 'blind') 
+    blind_res = os.path.join(blind_res, 'pFind.summary') 
+    
+    with open(blind_res, 'r', encoding='utf-8') as f: 
+        lines = f.readlines() 
+    
+    total_psm = int(lines[1].split(':')[1])
+    
+    summary_path = os.path.join(current_path, 'pChem.summary') 
+    with open(summary_path, 'r', encoding='utf-8') as f: 
+        lines = f.readlines() 
+    
+    
+    select_pos_summary = 0 
+    psm_summary = 0 
+    max_psm = 0 
+
+    for i in range(1, len(lines)): 
+        line = lines[i].split('\t') 
+        cur_psm = int(line[4]) 
+        psm_summary += cur_psm 
+        if i == 1: 
+            top1_pos = line[7] 
+            max_psm = cur_psm 
+        cur_pos = line[7] 
+        if cur_pos == top1_pos: 
+            select_pos_summary += float(line[8])*cur_psm 
+    
+    print(psm_summary/total_psm)
+    print(max_psm/psm_summary)
+    print(select_pos_summary/psm_summary)
+        
 
 
 
