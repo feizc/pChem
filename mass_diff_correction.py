@@ -174,7 +174,6 @@ def pfind_result_rewrite(blind_path, origin_lines, common_dict, factor_shift):
 
 
 
-
 # 计算分数加权后修饰的精确质量 
 def weight_accurate_mass_compute(lines, mass, common_dict):
     mass_sum = 0.0 
@@ -405,7 +404,8 @@ def new_summary_write(current_path, mod_static_dict, mod_number_dict, mod2pep, m
     if len(lines) < 2: 
         print('The number of unknown modification is none, please expand the error range.')
     else:
-        heat_map_plot(current_path, filter_mod, mod_static_dict, mod_number_dict)
+        heat_map_plot(current_path, filter_mod, mod_static_dict, mod_number_dict) 
+    return filter_mod 
 
 
 
@@ -435,8 +435,9 @@ def heat_map_plot(current_path, filter_mod, mod_static_dict, mod_number_dict):
     plt.ylabel('amino acid selectivity')
     plt.xlabel('probes')
     png_path = os.path.join(current_path, 'heat_map.pdf') 
+    # plt.show()
     plt.savefig(png_path, dpi=200, bbox_inches='tight')
-    
+    plt.close()
 
 
 # 保留整数，其余信息进行合并 
@@ -684,7 +685,7 @@ def explain_dict_generate(current_path):
             
 
 
-# 删选PSM低于指定阈值的输出 
+# 删选PSM低于指定阈值百分比的输出 
 def summary_filter(current_path, parameter_dict, filter_mod): 
     if parameter_dict['filter_frequency'] < 0.0:
         print('filter_frequency out of range!')
@@ -706,22 +707,26 @@ def summary_filter(current_path, parameter_dict, filter_mod):
     new_lines = []
     new_lines.append(lines[0]) 
     i = 1 
+    print('Current pChem filter out ', str(int(parameter_dict['filter_frequency'])), '% PSM')
     for line in lines[1:]: 
         if int(line.split('\t')[4]) >= min_psm: 
             new_filter_mod.append(line.split('\t')[1][12:])
             new_lines.append(str(i) + line[1:]) 
             i += 1 
     # print(new_lines)  
-    metric_evaluation(current_path, parameter_dict)  
+    
     with open(summary_path, 'w', encoding='utf-8') as f: 
         for line in new_lines: 
             f.write(line) 
+    
+    metric_evaluation(current_path, parameter_dict)  
+
     return new_filter_mod
 
 
 
 # 数据集级别指标评价 
-# 效率： mod_psm /  all_psm, 均一：max_mod_psm / mod_psm, 位点选择性 
+# Identification efficiency： mod_psm /  all_psm, Modification uniformity：max_mod_psm / mod_psm, Position selectivity
 def metric_evaluation(current_path, parameter_dict): 
     # print(current_path) 
     # print(parameter_dict)
@@ -740,8 +745,12 @@ def metric_evaluation(current_path, parameter_dict):
     
     select_pos_summary = 0 
     psm_summary = 0 
-    max_psm = 0 
-
+    max_psm = 0  
+    mod_name = ''
+    if len(lines) < 2:
+        print('please change the range of diff!') 
+        return 
+    
     for i in range(1, len(lines)): 
         line = lines[i].split('\t') 
         cur_psm = int(line[4]) 
@@ -749,15 +758,39 @@ def metric_evaluation(current_path, parameter_dict):
         if i == 1: 
             top1_pos = line[7] 
             max_psm = cur_psm 
+            mod_name = line[1][12:]
         cur_pos = line[7] 
         if cur_pos == top1_pos: 
             select_pos_summary += float(line[8])*cur_psm 
     
-    print(psm_summary/total_psm)
-    print(max_psm/psm_summary)
-    print(select_pos_summary/psm_summary)
-        
+    #print(psm_summary/total_psm)
+    #print(max_psm/psm_summary)
+    #print(select_pos_summary/psm_summary)
+    x = [psm_summary/total_psm*100.0, max_psm/psm_summary*100.0, select_pos_summary/psm_summary*100.0] 
+    radar_plot(x, mod_name)
 
+def radar_plot(x, mod_name):
+    # matplotlib.rcParams['font.family']="SimHei"
+    radar_labels = np.array(['Identification efficiency','Modification uniformity','Position selectivity'])
+    data = np.array(x)
+    data_labels =(mod_name,)
+
+
+    angles = np.linspace(0, 2*np.pi, 3, endpoint=False)
+    radar_fig = plt.figure(facecolor = "white") 
+    
+    plt.subplot(111, polar = True)
+    plt.plot(angles, data,'o-',linewidth=1, alpha=0.2)
+    plt.fill(angles, data, alpha=0.25)
+    plt.thetagrids(angles*180/np.pi, radar_labels)
+    #plt.figtext(0.52, 0.95, '霍兰德人格分析', ha='center', size=20)
+    legend = plt.legend(data_labels, loc = (0.94, 0.80), labelspacing = 0.1)
+    plt.setp(legend.get_texts(), fontsize='large')
+    plt.grid(True)
+    plt.ylim(0, 100)
+    # plt.show()
+    plt.savefig('radar.pdf') 
+    plt.close()
 
 
 if __name__ == "__main__": 

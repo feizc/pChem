@@ -24,7 +24,7 @@ def mgf_read(mgf_path):
     mass_spectra_dict = {}
     with open(mgf_path, 'r') as f:
         lines = f.readlines()
-    print('read mgf data...')
+    print('reading mgf data.')
     i = 0  
     while i < len(lines): 
         if 'BEGIN' in lines[i]: 
@@ -150,11 +150,11 @@ def ion_type_compute(filtered_res, modification, accurate_mass, common_modificat
     total_ion_diff_counter = Counter() 
     total_ion_diff_list = []
     total_weight_ion_diff_list = []
-    segment = int(len(filtered_res) / 10)
-    i = 0 
+    #segment = int(len(filtered_res) / 10)
+    #i = 0 
     for line in filtered_res:
-        if i % segment == 0:
-            print('finished ', i / segment * 10,  'percetage')
+        #if i % segment == 0:
+        #    print('finished ', i / segment * 10,  'percetage')
         line_split = line.split('\t')
         spectrum_name, peptide_sequence, mod_list = line_split[0], line_split[5], line_split[10]
         # print(spectrum_name, peptide_sequence, mod_list)
@@ -173,9 +173,9 @@ def ion_type_compute(filtered_res, modification, accurate_mass, common_modificat
         total_ion_diff_counter.update(ion_diff_counter) 
         total_ion_diff_list += ion_diff_fine 
         total_weight_ion_diff_list += weight_ion_diff 
-        i += 1
+        # i += 1
         # break  
-    print(total_ion_diff_counter.most_common()[:20])
+    # print(total_ion_diff_counter.most_common()[:10])
     return total_ion_diff_counter, total_ion_diff_list, total_weight_ion_diff_list
 
 
@@ -218,6 +218,53 @@ def weight_accurate_ion_mass_computation(coarse_mass, total_weight_ion_diff_list
     return mass_sum / mass_num 
 
 
+# 对离群点进行检测和分析 
+def freq_analysis(total_ion_diff_counter): 
+    counter_list = []
+    for k, v in total_ion_diff_counter.items(): 
+        counter_list.append([k, v]) 
+    counter_list = sorted(counter_list, key=lambda x: x[1], reverse=True)
+    print(counter_list[:10])
+    print(len(counter_list))
+    counter_list = counter_cluster(counter_list) 
+    counter_list = sorted(counter_list, key=lambda x: x[1], reverse=True)
+    print(counter_list[:10])
+    value_counter_list = [p[1] for p in counter_list]
+    arr_mean = np.mean(value_counter_list) 
+    # 方差 np.var
+    arr_var = np.std(value_counter_list, ddof=1)
+    print(arr_mean, arr_var) 
+
+
+# 对近似点进行聚类 
+def counter_cluster(counter_list):
+    new_counter_list = [] 
+    for pair in counter_list:
+        if pair[1] > 1:
+            flag = False 
+            for cur_pair in new_counter_list: 
+                if abs(pair[0]-cur_pair[0]) < 0.02: 
+                    cur_pair[1] += pair[1]
+                    flag = True
+                    break 
+            if flag == False: 
+                new_counter_list.append(pair) 
+        #else:
+        #    new_counter_list.append(pair)
+    return new_counter_list 
+
+
+# 特征离子确定 
+def feature_peak_determine(mass_spectra_dict): 
+    position_list = []
+    for key in mass_spectra_dict:
+        cur_position_list = [round(float(p[0]),2) for p in mass_spectra_dict[key].peak_list]
+        position_list += cur_position_list
+        
+    position_counter = Counter(position_list) 
+    print(position_counter.most_common()[:10])
+
+
 
 # 离子类型学习 
 def ion_type_determine(current_path, modification_list, modification_dict): 
@@ -232,6 +279,8 @@ def ion_type_determine(current_path, modification_list, modification_dict):
         cur_mass_spectra_dict = mgf_read(mgf_path) 
         mass_spectra_dict.update(cur_mass_spectra_dict)
     print('The number of spectra: ', len(mass_spectra_dict.keys())) 
+    feature_peak_determine(mass_spectra_dict) 
+    return 
 
     # 读取盲搜得到的结果 
     blind_path = os.path.join(parameter_dict['output_path'], 'blind')
@@ -245,23 +294,26 @@ def ion_type_determine(current_path, modification_list, modification_dict):
     # 筛选有效的PSM 
     for modification in modification_list:
         filtered_res = PSM_filter(blind_res, modification) 
+        # total_ion_diff_list: 所有质量差组成的列表 
         total_ion_diff_counter, total_ion_diff_list, total_weight_ion_diff_list = ion_type_compute(filtered_res, modification, modification_dict[modification], common_modification_dict, mass_spectra_dict) 
         # 画频率图 
-        # freq_line_plot(total_ion_diff_counter) 
+        #freq_line_plot(total_ion_diff_counter) 
+        freq_analysis(total_ion_diff_counter)
+
         
         for ion_mass, _ in total_ion_diff_counter.most_common()[:8]:
             accurate_ion_mass = accurate_ion_mass_computation(ion_mass, total_ion_diff_list) 
             weight_accurate_ion_mass = weight_accurate_ion_mass_computation(ion_mass, total_weight_ion_diff_list)
-            print(accurate_ion_mass)
-            print(weight_accurate_ion_mass)
-            
+            print('average: ', accurate_ion_mass)
+            print('weight: ', weight_accurate_ion_mass)
+        break 
         # print(filtered_res)
 
 
 if __name__ == "__main__": 
     current_path = os.getcwd() 
     # 需要输入待确认的未知
-    modification_list = ['PFIND_DELTA_252', 'PFIND_DELTA_258']
-    modification_dict = {'PFIND_DELTA_252': 252.121858, 'PFIND_DELTA_258':258.141955}
+    modification_list = ['PFIND_DELTA_387', 'PFIND_DELTA_393']
+    modification_dict = {'PFIND_DELTA_387': 387.175214, 'PFIND_DELTA_393':393.195818}
     ion_type_determine(current_path, modification_list, modification_dict) 
     
